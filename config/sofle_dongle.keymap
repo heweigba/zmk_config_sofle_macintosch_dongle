@@ -118,7 +118,7 @@
 &trans  &trans  &trans  &trans  &trans    &trans    &kp ENTER  &kp LG(W)  &trans    &trans  &trans   &trans
 &trans  &trans  &trans  &trans  &trans    &trans    &mkp LCLK  &mkp LCLK  &mkp MB1  &none   &trans   &trans     &kp BACKSPACE  &trans
 &trans  &trans  &trans  &trans  &trans    &trans    &mkp MCLK  &none      &trans    &trans  &kp F13  &kp LG(R)  &trans         &trans  &trans  &trans
-&trans  &trans  &trans  &trans  &mkp MB1  &mkp MB2  &trans     &trans     &trans    &trans
+&trans  &trans  &trans  &trans  &mkp MB1  &mkp MB1  &mkp MB2   &trans     &trans    &trans
             >;
 
             sensor-bindings = <&inc_dec_kp PG_UP PG_DN &msc_encoder>;
