@@ -45,10 +45,10 @@
         #address-cells = <1>;
         #size-cells = <0>;
 
-        /* BB Trackball */
-        trackpoint_split: trackpoint_split@0 {
+        /* Trackpoint on right half */
+        trackpoint_split: trackpoint_split@1 {
             compatible = "zmk,input-split";
-            reg = <0>;
+            reg = <1>;
         };
 
     };
