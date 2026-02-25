@@ -9,12 +9,12 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <stdlib.h>
-#include <math.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/i2c.h>
 
 #include <zmk/event_manager.h>
 #include <zmk/events/position_state_changed.h>
+#include <zmk/keymap.h>
 
 #include <zephyr/input/input.h>
 #include <zephyr/logging/log.h>
@@ -36,33 +36,74 @@ static const struct device *motion_gpio_dev;
 #define TRACKPOINT_PACKET_LEN 7
 #define TRACKPOINT_MAGIC_BYTE0 0x50
 
-/* ========= 指数加速参数 ========= */
-#ifdef CONFIG_TRACKPOINT_EXPONENTIAL
-#define TP_EXP_BASE 1.04f
-#define TP_SPEED_SCALE 0.03f
-#define TP_MAX_MULT 2.0f
-#endif
-
 /* ========= 全局状态 ========= */
 static const struct device *trackpoint_dev_ref = NULL;
-static bool space_pressed = false;
+static bool j_key_pressed = false;  // J键被按住时，小红点变为滚动模式
+static bool j_key_moved = false;    // 标记J键期间是否移动过小红点
+static bool j_should_rclk = false;  // 标记J键弹起时是否应该发送右键
 uint32_t last_packet_time = 0;
+uint32_t trackpoint_last_move_time = 0;  // 小红点最后移动时间
+#define RCLK_TIME_WINDOW_MS 400     // 右键时间窗口，与自动切换鼠标层一致
 
-/* ========= Space 按键监听 ========= */
-static int space_listener_cb(const zmk_event_t *eh) {
+/* ========= 滚动模式状态 ========= */
+static int16_t scroll_accumulator_x = 0;  // 水平滚动累计
+static int16_t scroll_accumulator_y = 0;  // 垂直滚动累计
+#define SCROLL_THRESHOLD 8               // 滚动阈值，累计超过此值才发送滚动事件
+#define SCROLL_SPEED_DIVISOR 3           // 滚动速度除数：降低滚动敏感度（2=50%，3=33%，4=25%）
+
+/* ========= J 键监听 =========
+ * 检测 J 键(position 35)状态：
+ * - 在鼠标层时：J按住进入滚动模式
+ * - 在默认层时：移动小红点后400ms内按J触发右键
+ */
+static int j_key_listener_cb(const zmk_event_t *eh) {
     const struct zmk_position_state_changed *ev = as_zmk_position_state_changed(eh);
     if (!ev) {
         return 0;
     }
 
-    if (ev->position == 62) { // Space position code
-        space_pressed = ev->state;
-        LOG_INF("space position=61 %s", space_pressed ? "PRESSED" : "RELEASED");
+    if (ev->position == 35) { // J key position
+        bool new_state = ev->state;
+        uint32_t now = k_uptime_get_32();
+
+        if (new_state) {
+            // J键按下时检查是否在右键时间窗口内
+            // 条件：移动过小红点 且 在400ms时间窗口内
+            if (trackpoint_last_move_time > 0 &&
+                (now - trackpoint_last_move_time) < RCLK_TIME_WINDOW_MS) {
+                j_should_rclk = true;
+                LOG_INF("J键按下：在右键时间窗口内，准备发送右键");
+            } else {
+                j_should_rclk = false;
+                LOG_INF("J键按下：不在时间窗口内，正常J键");
+            }
+            // 重置滚动模式标记
+            j_key_moved = false;
+        } else {
+            // J键弹起时
+            // 条件：在时间窗口内按下 且 滚动期间未移动过小红点
+            if (j_should_rclk && !j_key_moved) {
+                // 发送右键
+                if (trackpoint_dev_ref && device_is_ready(trackpoint_dev_ref)) {
+                    input_report_key(trackpoint_dev_ref, INPUT_BTN_1, 1, true, K_MSEC(50));
+                    k_sleep(K_MSEC(50));
+                    input_report_key(trackpoint_dev_ref, INPUT_BTN_1, 0, true, K_MSEC(50));
+                    LOG_INF("J键弹起：发送右键");
+                }
+            } else if (j_should_rclk && j_key_moved) {
+                LOG_INF("J键弹起：滚动期间移动过，不发送右键");
+            }
+            j_should_rclk = false;
+        }
+
+        j_key_pressed = new_state;
+        LOG_INF("J键状态: %s", j_key_pressed ? "按下" : "弹起");
     }
     return 0;
 }
-ZMK_LISTENER(trackpoint_space_listener, space_listener_cb);
-ZMK_SUBSCRIPTION(trackpoint_space_listener, zmk_position_state_changed);
+ZMK_LISTENER(trackpoint_j_key_listener, j_key_listener_cb);
+ZMK_SUBSCRIPTION(trackpoint_j_key_listener, zmk_position_state_changed);
+
 
 /* ========= TrackPoint 配置结构 ========= */
 struct trackpoint_config {
@@ -77,114 +118,88 @@ struct trackpoint_data {
     struct k_work_delayable poll_work;
 };
 
-/* ========= 指数加速计算 ========= */
-#ifdef CONFIG_TRACKPOINT_EXPONENTIAL
-static inline float trackpoint_exponential_factor(int8_t dx, int8_t dy, uint32_t delta_ms) {
-
-    if (delta_ms == 0) {
-        delta_ms = 1;
-    }
-
-    float dist = fabsf(dx) + fabsf(dy);
-    if (dist < 1.0f) {
-        return 1.0f;
-    }
-
-    float speed = dist / (float)delta_ms;
-    float mult = powf(TP_EXP_BASE, speed / TP_SPEED_SCALE);
-
-    if (mult > TP_MAX_MULT) {
-        mult = TP_MAX_MULT;
-    }
-
-    return mult;
-}
-#endif
-
 /* ========= 读取数据包 ========= */
 static int trackpoint_read_packet(const struct device *dev, int8_t *dx, int8_t *dy) {
     const struct trackpoint_config *cfg = dev->config;
     uint8_t buf[TRACKPOINT_PACKET_LEN] = {0};
-
     int ret = i2c_read_dt(&cfg->i2c, buf, TRACKPOINT_PACKET_LEN);
     if (ret < 0) {
         LOG_ERR("I2C read failed: %d", ret);
         return ret;
     }
-
     if (buf[0] != TRACKPOINT_MAGIC_BYTE0) {
         LOG_WRN("Invalid packet header: 0x%02X", buf[0]);
         return -EIO;
     }
-
     *dx = (int8_t)buf[2];
     *dy = (int8_t)buf[3];
     return 0;
 }
 
+
 /* ========= Polling 任务 ========= */
 static void trackpoint_poll_work(struct k_work *work) {
     struct k_work_delayable *dwork = CONTAINER_OF(work, struct k_work_delayable, work);
     struct trackpoint_data *data = CONTAINER_OF(dwork, struct trackpoint_data, poll_work);
-
     const struct device *dev = data->dev;
     uint32_t now = k_uptime_get_32();
 
     int pin_state = gpio_pin_get(motion_gpio_dev, MOTION_GPIO_PIN);
 
     if (pin_state == 0) {
+        /* INTPIN 拉低，读取数据包 */
         int8_t dx = 0, dy = 0;
-
         if (trackpoint_read_packet(dev, &dx, &dy) == 0) {
+            /* 根据 H 键状态选择模式 */
+            uint8_t tp_led_brt = custom_led_get_last_valid_brightness();
+            float tp_factor = 0.4f + 0.01f * tp_led_brt;
 
-            if (space_pressed) {
-                /* Space 按住时作为滚轮 */
-                int16_t scroll_x = 0, scroll_y = 0;
+            // 记录小红点移动时间（用于J键右键时间窗口判断）
+            if (dx != 0 || dy != 0) {
+                trackpoint_last_move_time = now;
+            }
 
-                if (abs(dy) >= 128) {
-                    scroll_x = -dx / 24;
-                    scroll_y = -dy / 24;
-                } else if (abs(dy) >= 64) {
-                    scroll_x = -dx / 16;
-                    scroll_y = -dy / 16;
-                } else if (abs(dy) >= 32) {
-                    scroll_x = -dx / 12;
-                    scroll_y = -dy / 12;
-                } else if (abs(dy) >= 21) {
-                    scroll_x = -dx / 8;
-                    scroll_y = -dy / 8;
-                } else if (abs(dy) >= 3) {
-                    scroll_x = (dx > 0) ? -1 : (dx < 0) ? 1 : 0;
-                    scroll_y = (dy > 0) ? -1 : (dy < 0) ? 1 : 0;
-                } else {
-                    scroll_x = (dx > 0) ? -1 : (dx < 0) ? 1 : 0;
-                    scroll_y = 0;
+            if (j_key_pressed) {
+                /* J键按住（在鼠标层）：转换为滚轮事件 */
+                // 标记J键期间移动过小红点
+                if (dx != 0 || dy != 0) {
+                    j_key_moved = true;
+                }
+                int16_t scaled_dx = -(int16_t)dx * 3 / 2 / SCROLL_SPEED_DIVISOR * tp_factor;
+                int16_t scaled_dy = -(int16_t)dy * 3 / 2 / SCROLL_SPEED_DIVISOR * tp_factor;
+
+                /* 累计滚动值 */
+                scroll_accumulator_x += scaled_dx;
+                scroll_accumulator_y += scaled_dy;
+
+                int8_t scroll_x = 0;
+                int8_t scroll_y = 0;
+
+                /* 水平滚动 */
+                if (abs(scroll_accumulator_x) >= SCROLL_THRESHOLD) {
+                    scroll_x = scroll_accumulator_x / SCROLL_THRESHOLD;
+                    scroll_accumulator_x = scroll_accumulator_x % SCROLL_THRESHOLD;
                 }
 
-                input_report_rel(dev, INPUT_REL_HWHEEL, scroll_x, false, K_FOREVER);
-                input_report_rel(dev, INPUT_REL_WHEEL, -scroll_y, true, K_FOREVER);
-                k_sleep(K_MSEC(40));
+                /* 垂直滚动 */
+                if (abs(scroll_accumulator_y) >= SCROLL_THRESHOLD) {
+                    scroll_y = scroll_accumulator_y / SCROLL_THRESHOLD;
+                    scroll_accumulator_y = scroll_accumulator_y % SCROLL_THRESHOLD;
+                }
 
+                /* 发送滚动事件 */
+                if (scroll_x != 0 || scroll_y != 0) {
+                    input_report_rel(dev, INPUT_REL_HWHEEL, -scroll_x, false, K_FOREVER);
+                    input_report_rel(dev, INPUT_REL_WHEEL, scroll_y, true, K_FOREVER);
+                }
             } else {
-                /* 正常鼠标移动 */
-                uint8_t tp_led_brt = custom_led_get_last_valid_brightness();
-                float tp_factor = 0.3f + 0.01f * tp_led_brt;
-
-#ifdef CONFIG_TRACKPOINT_EXPONENTIAL
-                uint32_t delta = now - last_packet_time;
-                float exp_mult = trackpoint_exponential_factor(dx, dy, delta);
-#else
-                float exp_mult = 1.0f;
-#endif
-
-                float fx = dx * 0.5f * tp_factor * exp_mult;
-                float fy = dy * 0.5f * tp_factor * exp_mult;
-
-                input_report_rel(dev, INPUT_REL_X, -(int)fx, false, K_FOREVER);
-                input_report_rel(dev, INPUT_REL_Y, -(int)fy, true, K_FOREVER);
+                /* J键未按（默认层）：移动鼠标 */
+                dx = dx * 3 / 2 * tp_factor;
+                dy = dy * 3 / 2 * tp_factor;
+                input_report_rel(dev, INPUT_REL_X, -dx, false, K_FOREVER);
+                input_report_rel(dev, INPUT_REL_Y, -dy, true, K_FOREVER);
             }
         }
-
         last_packet_time = now;
     }
 
@@ -198,7 +213,6 @@ static int trackpoint_init(const struct device *dev) {
 
     LOG_DBG("Initializing TrackPoint I2C @0x%02x", cfg->i2c.addr);
     k_sleep(K_MSEC(10));
-
     if (!device_is_ready(cfg->i2c.bus)) {
         LOG_ERR("I2C bus not ready");
         return -ENODEV;
