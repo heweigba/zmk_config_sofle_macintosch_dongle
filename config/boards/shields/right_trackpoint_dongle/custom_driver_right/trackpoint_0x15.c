@@ -62,7 +62,7 @@ static int j_key_listener_cb(const zmk_event_t *eh) {
         return 0;
     }
 
-    if (ev->position == 35) { // J key position
+    if (ev->position == 36) { // J key position (接收器版偏移+1)
         bool new_state = ev->state;
         uint32_t now = k_uptime_get_32();
 
