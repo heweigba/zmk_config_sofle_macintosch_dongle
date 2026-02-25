@@ -32,9 +32,8 @@
     pinctrl-0 = <&i2c0_default>;
     pinctrl-1 = <&i2c0_sleep>;
     pinctrl-names = "default", "sleep";
-};
 
-    trackpoint:trackpoint@15 {
+    trackpoint: trackpoint@15 {
         compatible = "zmk,trackpoint";
         reg = <0x15>;
         status = "okay";
