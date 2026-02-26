@@ -100,11 +100,11 @@
             display-name = "FUNCTION";
             bindings = <
 &BOT
-&kp GRAVE  &kp F1              &kp F2    &kp F3    &kp F4     &kp F5           &bt BT_CLR  &kp C_MUTE    &kp F6        &kp F7        &kp SLASH     &kp ASTERISK  &kp MINUS      &kp BSPC
-&trans     &trans              &kp UP    &trans    &trans     &out OUT_TOG     &kp F11     &kp NUMBER_7  &kp NUMBER_8  &kp NUMBER_9  &kp PLUS      &kp ENTER
-&trans     &kp LC(LS(LG(N4)))  &kp LEFT  &kp DOWN  &kp RIGHT  &trans           &mkp RCLK   &mkp RCLK     &kp F12       &kp NUMBER_4  &kp NUMBER_5  &kp NUMBER_6  &kp BACKSPACE  &kp LEFT_BRACKET
-&trans     &trans              &trans    &trans    &trans     &rgb_ug RGB_TOG  &trans      &trans        &bl BL_DEC    &bl BL_INC    &kp F13       &kp NUMBER_1  &kp NUMBER_2   &kp NUMBER_3      &kp EQUAL  &kp RIGHT_BRACKET
-&BOT       &trans              &trans    &mo 1     &kp ENTER  &kp ENTER        &mo 1       &kp NUMBER_0  &kp DOT       &BOT
+&kp GRAVE  &kp F1              &kp F2       &kp F3        &kp F4         &kp F5           &bt BT_CLR  &kp C_MUTE    &kp F6        &kp F7        &kp SLASH     &kp ASTERISK  &kp MINUS      &kp BSPC
+&trans     &trans              &kp PAGE_UP  &kp UP_ARROW  &kp PAGE_DOWN  &out OUT_TOG     &kp F11     &kp NUMBER_7  &kp NUMBER_8  &kp NUMBER_9  &kp PLUS      &kp ENTER
+&trans     &kp LC(LS(LG(N4)))  &kp LEFT     &kp DOWN      &kp RIGHT      &trans           &mkp RCLK   &mkp RCLK     &kp F12       &kp NUMBER_4  &kp NUMBER_5  &kp NUMBER_6  &kp BACKSPACE  &kp LEFT_BRACKET
+&trans     &trans              &trans       &trans        &trans         &rgb_ug RGB_TOG  &trans      &trans        &bl BL_DEC    &bl BL_INC    &kp F13       &kp NUMBER_1  &kp NUMBER_2   &kp NUMBER_3      &kp EQUAL  &kp RIGHT_BRACKET
+&BOT       &trans              &trans       &mo 1         &kp ENTER      &kp ENTER        &mo 1       &kp NUMBER_0  &kp DOT       &BOT
             >;
 
             sensor-bindings = <&BLE_encoder &msc_encoder>;
