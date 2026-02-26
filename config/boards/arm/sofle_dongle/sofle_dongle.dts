@@ -97,6 +97,7 @@
 /* 启用 trackpoint_listener，并绑定临时层切换处理器 */
 &trackpoint_listener {
     status = "okay";
+    codes = <INPUT_REL_X INPUT_REL_Y>;
     input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
