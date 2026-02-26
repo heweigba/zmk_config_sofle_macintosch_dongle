@@ -16,6 +16,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/input/input.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zmk/hid.h>
 #include <zmk/endpoints.h>
 #include <zmk/events/position_state_changed.h>
@@ -108,28 +109,20 @@ bool trackball_is_moving(void) {
     return false;
 }
 
-/* ==== 发送方向键 ==== */
-static void send_arrow_key(uint8_t keycode, bool pressed) {
-    if (pressed) {
-        zmk_hid_keyboard_press(keycode);
-    } else {
-        zmk_hid_keyboard_release(keycode);
-    }
-    zmk_endpoints_send_report(0x07);
-}
-
-/* ==== 触发一次方向键 ==== */
+/* ==== 触发一次方向键（使用input_report_key）==== */
 static void trigger_key_press(uint8_t dir) {
-    uint8_t keycode;
+    uint16_t key_code;
     switch (dir) {
-        case DIR_LEFT:  keycode = 0x50; break;
-        case DIR_RIGHT: keycode = 0x4F; break;
-        case DIR_UP:    keycode = 0x52; break;
-        case DIR_DOWN:  keycode = 0x51; break;
+        case DIR_LEFT:  key_code = INPUT_KEY_LEFT; break;
+        case DIR_RIGHT: key_code = INPUT_KEY_RIGHT; break;
+        case DIR_UP:    key_code = INPUT_KEY_UP; break;
+        case DIR_DOWN:  key_code = INPUT_KEY_DOWN; break;
         default: return;
     }
-    send_arrow_key(keycode, true);
-    send_arrow_key(keycode, false);
+
+    /* 发送按键按下和释放事件 */
+    input_report_key(trackball_dev_ref, key_code, 1, true, K_FOREVER);
+    input_report_key(trackball_dev_ref, key_code, 0, true, K_FOREVER);
 }
 
 
