@@ -102,6 +102,7 @@
 
 &bbtrackball_listener {
     status = "okay";
+    input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
 &adc {
