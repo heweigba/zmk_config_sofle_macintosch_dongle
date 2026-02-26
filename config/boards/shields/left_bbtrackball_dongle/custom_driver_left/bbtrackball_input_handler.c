@@ -109,20 +109,28 @@ bool trackball_is_moving(void) {
     return false;
 }
 
-/* ==== 触发一次方向键（使用input_report_key）==== */
+/* ==== 发送方向键 ==== */
+static void send_arrow_key(uint8_t keycode, bool pressed) {
+    if (pressed) {
+        zmk_hid_keyboard_press(keycode);
+    } else {
+        zmk_hid_keyboard_release(keycode);
+    }
+    zmk_endpoints_send_report(0x07);
+}
+
+/* ==== 触发一次方向键 ==== */
 static void trigger_key_press(uint8_t dir) {
-    uint16_t key_code;
+    uint8_t keycode;
     switch (dir) {
-        case DIR_LEFT:  key_code = INPUT_KEY_LEFT; break;
-        case DIR_RIGHT: key_code = INPUT_KEY_RIGHT; break;
-        case DIR_UP:    key_code = INPUT_KEY_UP; break;
-        case DIR_DOWN:  key_code = INPUT_KEY_DOWN; break;
+        case DIR_LEFT:  keycode = 0x50; break;
+        case DIR_RIGHT: keycode = 0x4F; break;
+        case DIR_UP:    keycode = 0x52; break;
+        case DIR_DOWN:  keycode = 0x51; break;
         default: return;
     }
-
-    /* 发送按键按下和释放事件 */
-    input_report_key(trackball_dev_ref, key_code, 1, true, K_FOREVER);
-    input_report_key(trackball_dev_ref, key_code, 0, true, K_FOREVER);
+    send_arrow_key(keycode, true);
+    send_arrow_key(keycode, false);
 }
 
 
