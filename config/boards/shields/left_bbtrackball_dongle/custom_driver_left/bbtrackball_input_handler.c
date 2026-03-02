@@ -3,9 +3,9 @@
  *
  * 算法：节流状态机
  * - IDLE: 等待首次脉冲
- * - FIRST_OUTPUT: 输出1格，进入冷却
- * - COOLDOWN: 200ms冷却期，累计脉冲
- * - UNIFORM: 60ms固定间隔匀速输出
+ * - FIRST_OUTPUT: 输出 1 格，进入冷却
+ * - COOLDOWN: 200ms 冷却期，累计脉冲
+ * - UNIFORM: 60ms 固定间隔匀速输出
  * SPDX-License-Identifier: MIT
  */
 
@@ -35,9 +35,9 @@ LOG_MODULE_REGISTER(bbtrackball_input_handler, LOG_LEVEL_INF);
 
 /* ==== 滚轮节流控制参数 ==== */
 #define COOLDOWN_MS 200            /* 首次触发后的冷却期 */
-#define UNIFORM_INTERVAL_MS 150    /* 匀速输出间隔 */
-#define RESET_IDLE_MS 300          /* 停止移动后重置状态的时间（从100增加到300ms以过滤干扰）*/
-#define DEBOUNCE_MS 5              /* 防抖时间：5ms内的重复脉冲忽略 */
+#define UNIFORM_INTERVAL_MS 60     /* 匀速输出间隔 */
+#define RESET_IDLE_MS 300          /* 停止移动后重置状态的时间（从 100 增加到 300ms 以过滤干扰）*/
+#define DEBOUNCE_MS 5              /* 防抖时间：5ms 内的重复脉冲忽略 */
 
 /* 节流状态机 */
 enum throttle_state {
@@ -93,12 +93,12 @@ struct bbtrackball_data {
     const struct device *dev;
 };
 
-/* ==== 外部接口 (供trackball_led.c使用) ==== */
+/* ==== 外部接口 (供 trackball_led.c 使用) ==== */
 bool trackball_is_moving(void) {
     uint32_t now = k_uptime_get_32();
     for (int i = 0; i < DIR_COUNT; i++) {
         DirState *d = &dir_states[i];
-        /* 有pending步数或者在最近100ms内有脉冲 */
+        /* 有 pending 步数或者在最近 100ms 内有脉冲 */
         if (d->pending_steps > 0 || d->accumulated_steps > 0) {
             return true;
         }
@@ -109,33 +109,28 @@ bool trackball_is_moving(void) {
     return false;
 }
 
-/* ==== 触发一次方向键（发送BTN事件）==== */
+/* ==== 发送方向键 ==== */
+static void send_arrow_key(uint8_t keycode, bool pressed) {
+    if (pressed) {
+        zmk_hid_keyboard_press(keycode);
+    } else {
+        zmk_hid_keyboard_release(keycode);
+    }
+    zmk_endpoints_send_report(0x07);
+}
+
+/* ==== 触发一次方向键 ==== */
 static void trigger_arrow_key(uint8_t dir) {
-    /* 使用BTN code，接收器端配置input-processor转换 */
-    uint16_t btn_code;
+    uint8_t keycode;
     switch (dir) {
-        case DIR_LEFT:  btn_code = INPUT_BTN_0; break;   /* 左 */
-        case DIR_RIGHT: btn_code = INPUT_BTN_1; break;   /* 右 */
-        case DIR_UP:    btn_code = INPUT_BTN_2; break;   /* 上 */
-        case DIR_DOWN:  btn_code = INPUT_BTN_3; break;   /* 下 */
+        case DIR_LEFT:  keycode = 0x50; break;  /* 左 */
+        case DIR_RIGHT: keycode = 0x4F; break;  /* 右 */
+        case DIR_UP:    keycode = 0x52; break;  /* 上 */
+        case DIR_DOWN:  keycode = 0x51; break;  /* 下 */
         default: return;
     }
-
-    /* 发送按键按下事件 - 使用 K_NO_WAIT 避免阻塞 */
-    if (input_report_key(trackball_dev_ref, btn_code, 1, false, K_NO_WAIT) != 0) {
-        LOG_WRN("Dir %d: failed to send press event", dir);
-        return;  /* 发送失败则跳过，避免堆积 */
-    }
-
-    /* 短暂延迟确保事件分离 */
-    k_msleep(5);
-
-    /* 发送按键释放事件 - 使用 K_NO_WAIT 避免阻塞 */
-    if (input_report_key(trackball_dev_ref, btn_code, 0, true, K_NO_WAIT) != 0) {
-        LOG_WRN("Dir %d: failed to send release event", dir);
-    }
-
-    LOG_DBG("Triggered arrow key: dir=%d, btn=%d", dir, btn_code);
+    send_arrow_key(keycode, true);
+    send_arrow_key(keycode, false);
 }
 
 
@@ -144,7 +139,7 @@ static int space_listener_cb(const zmk_event_t *eh) {
     const struct zmk_position_state_changed *ev = as_zmk_position_state_changed(eh);
     if (!ev) return 0;
 
-    if (ev->position == 61) {  // 接收器版偏移+1
+    if (ev->position == 61) {  // 接收器版偏移 +1
         space_pressed = ev->state;
         LOG_INF("Space %s", space_pressed ? "HELD (scroll mode)" : "RELEASED");
     }
@@ -165,7 +160,7 @@ static void dir_edge_cb(const struct device *dev, struct gpio_callback *cb, uint
             if (val != d->last_state) {
                 d->last_state = val;
                 if (val == 0) {  /* 下降沿 */
-                    /* 防抖：5ms内的重复脉冲忽略（过滤电磁干扰）*/
+                    /* 防抖：5ms 内的重复脉冲忽略（过滤电磁干扰）*/
                     if (now - d->last_pulse_time < DEBOUNCE_MS) {
                         LOG_DBG("Dir %d: debounced pulse (interval=%dms)", i, (int)(now - d->last_pulse_time));
                         break;
@@ -174,7 +169,7 @@ static void dir_edge_cb(const struct device *dev, struct gpio_callback *cb, uint
 
                     switch (d->throttle) {
                         case THROTTLE_IDLE:
-                            /* 首次脉冲：输出1格，进入FIRST_OUTPUT状态 */
+                            /* 首次脉冲：输出 1 格，进入 FIRST_OUTPUT 状态 */
                             d->pending_steps = 1;
                             d->accumulated_steps = 0;
                             d->throttle = THROTTLE_FIRST_OUTPUT;
@@ -227,7 +222,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
         case THROTTLE_COOLDOWN:
             /* 检查冷却期是否结束 */
             if (now - d->last_output_time >= COOLDOWN_MS) {
-                /* 冷却结束，将累计的步数移到pending */
+                /* 冷却结束，将累计的步数移到 pending */
                 d->pending_steps = d->accumulated_steps;
                 d->accumulated_steps = 0;
                 d->throttle = THROTTLE_UNIFORM;
@@ -244,7 +239,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
             break;
 
         case THROTTLE_UNIFORM:
-            /* 匀速输出：每60ms输出一个 */
+            /* 匀速输出：每 60ms 输出一个 */
             if (now - d->last_output_time >= UNIFORM_INTERVAL_MS) {
                 if (d->pending_steps > 0) {
                     trigger_arrow_key(dir_id);
@@ -252,7 +247,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
                     d->last_output_time = now;
                     LOG_DBG("Dir %d: UNIFORM output, remaining=%d", dir_id, d->pending_steps);
                 } else if (d->accumulated_steps > 0) {
-                    /* pending空了，从accumulated补充 */
+                    /* pending 空了，从 accumulated 补充 */
                     d->pending_steps = d->accumulated_steps;
                     d->accumulated_steps = 0;
                     trigger_arrow_key(dir_id);
@@ -264,7 +259,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
             break;
     }
 
-    /* 检查是否需要重置：100ms无脉冲 */
+    /* 检查是否需要重置：100ms 无脉冲 */
     if (d->throttle != THROTTLE_IDLE && (now - d->last_pulse_time > RESET_IDLE_MS)) {
         LOG_INF("Dir %d: timeout reset to IDLE", dir_id);
         d->throttle = THROTTLE_IDLE;
@@ -277,11 +272,11 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
 static void process_handler(struct k_work *work) {
     uint32_t now = k_uptime_get_32();
 
-    /* 处理X轴（左右）- 互斥 */
+    /* 处理 X 轴（左右）- 互斥 */
     DirState *d_left = &dir_states[DIR_LEFT];
     DirState *d_right = &dir_states[DIR_RIGHT];
 
-    /* 如果两个方向都有输入，优先处理pending_steps多的方向 */
+    /* 如果两个方向都有输入，优先处理 pending_steps 多的方向 */
     if ((d_left->pending_steps > 0 || d_left->accumulated_steps > 0) &&
         (d_right->pending_steps > 0 || d_right->accumulated_steps > 0)) {
         int left_total = d_left->pending_steps + d_left->accumulated_steps;
@@ -296,7 +291,7 @@ static void process_handler(struct k_work *work) {
         process_dir_throttle(d_right, DIR_RIGHT, now);
     }
 
-    /* 处理Y轴（上下）- 互斥 */
+    /* 处理 Y 轴（上下）- 互斥 */
     DirState *d_up = &dir_states[DIR_UP];
     DirState *d_down = &dir_states[DIR_DOWN];
 
@@ -314,7 +309,7 @@ static void process_handler(struct k_work *work) {
         process_dir_throttle(d_down, DIR_DOWN, now);
     }
 
-    k_work_schedule(&process_work, K_MSEC(50));  /* 10ms轮询间隔 */
+    k_work_schedule(&process_work, K_MSEC(10));  /* 10ms 轮询间隔 */
 }
 
 /* ==== 初始化 ==== */
@@ -340,7 +335,7 @@ static int bbtrackball_init(const struct device *dev) {
     trackball_dev_ref = dev;
 
     k_work_init_delayable(&process_work, process_handler);
-    k_work_schedule(&process_work, K_MSEC(50));
+    k_work_schedule(&process_work, K_MSEC(10));
 
     return 0;
 }
@@ -358,3 +353,4 @@ static int bbtrackball_init(const struct device *dev) {
                           NULL);
 
 DT_INST_FOREACH_STATUS_OKAY(BBTRACKBALL_DEFINE);
+

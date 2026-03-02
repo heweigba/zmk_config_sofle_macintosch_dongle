@@ -18,21 +18,6 @@
 #define BOT bootloader
 
 / {
-    /* 轨迹球方向键映射 */
-    input_processors {
-        compatible = "zmk,input-processors";
-        bb_arrow_keys: bb_arrow_keys {
-            compatible = "zmk,input-processor-behaviors";
-            #input-processor-cells = <0>;
-            codes = <INPUT_BTN_0 INPUT_BTN_1 INPUT_BTN_2 INPUT_BTN_3>;
-            bindings =
-                <&kp LEFT>,   /* INPUT_BTN_0 */
-                <&kp RIGHT>,  /* INPUT_BTN_1 */
-                <&kp UP>,     /* INPUT_BTN_2 */
-                <&kp DOWN>;   /* INPUT_BTN_3 */
-        };
-    };
-
     behaviors {
         td0: tap_dance_0 {
             compatible = "zmk,behavior-tap-dance";
