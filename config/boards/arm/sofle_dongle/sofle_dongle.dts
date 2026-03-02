@@ -101,7 +101,9 @@
 };
 
 &bbtrackball_listener {
-    status = "disabled";  /* 不再需要 input-listener，驱动直接发送 HID 事件 */
+    status = "okay";
+    /* 使用 input-processor 将 INPUT_KEY 事件转换成方向键 */
+    input-processors = <&bb_arrow_keys>;
 };
 
 &adc {
