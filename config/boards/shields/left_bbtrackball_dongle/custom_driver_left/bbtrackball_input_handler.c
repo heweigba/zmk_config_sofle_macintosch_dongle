@@ -109,24 +109,24 @@ bool trackball_is_moving(void) {
     return false;
 }
 
-/* ==== 触发一次鼠标移动（使用input_report_rel）==== */
-static void trigger_mouse_move(uint8_t dir) {
-    int32_t dx = 0, dy = 0;
+/* ==== 触发一次方向键（发送BTN事件）==== */
+static void trigger_arrow_key(uint8_t dir) {
+    /* 使用BTN code，接收器端配置input-processor转换 */
+    uint16_t btn_code;
     switch (dir) {
-        case DIR_LEFT:  dx = -10; break;
-        case DIR_RIGHT: dx = 10; break;
-        case DIR_UP:    dy = -10; break;
-        case DIR_DOWN:  dy = 10; break;
+        case DIR_LEFT:  btn_code = INPUT_BTN_0; break;   /* 左 */
+        case DIR_RIGHT: btn_code = INPUT_BTN_1; break;   /* 右 */
+        case DIR_UP:    btn_code = INPUT_BTN_2; break;   /* 上 */
+        case DIR_DOWN:  btn_code = INPUT_BTN_3; break;   /* 下 */
         default: return;
     }
 
-    /* 发送鼠标移动事件 */
-    if (dx != 0) {
-        input_report_rel(trackball_dev_ref, INPUT_REL_X, dx, false, K_FOREVER);
-    }
-    if (dy != 0) {
-        input_report_rel(trackball_dev_ref, INPUT_REL_Y, dy, true, K_FOREVER);
-    }
+    /* 发送按键按下事件 */
+    input_report_key(trackball_dev_ref, btn_code, 1, false, K_FOREVER);
+    /* 发送按键释放事件（同步） */
+    input_report_key(trackball_dev_ref, btn_code, 0, true, K_FOREVER);
+
+    LOG_DBG("Triggered arrow key: dir=%d, btn=%d", dir, btn_code);
 }
 
 
@@ -207,7 +207,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
         case THROTTLE_FIRST_OUTPUT:
             /* 输出首次按键，记录时间，进入冷却期 */
             if (d->pending_steps > 0) {
-                trigger_mouse_move(dir_id);
+                trigger_arrow_key(dir_id);
                 d->pending_steps = 0;
                 d->last_output_time = now;
                 d->throttle = THROTTLE_COOLDOWN;
@@ -227,7 +227,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
 
                 /* 如果有步数，立即输出一个 */
                 if (d->pending_steps > 0) {
-                    trigger_mouse_move(dir_id);
+                    trigger_arrow_key(dir_id);
                     d->pending_steps--;
                     d->last_output_time = now;
                 }
@@ -238,7 +238,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
             /* 匀速输出：每60ms输出一个 */
             if (now - d->last_output_time >= UNIFORM_INTERVAL_MS) {
                 if (d->pending_steps > 0) {
-                    trigger_mouse_move(dir_id);
+                    trigger_arrow_key(dir_id);
                     d->pending_steps--;
                     d->last_output_time = now;
                     LOG_DBG("Dir %d: UNIFORM output, remaining=%d", dir_id, d->pending_steps);
@@ -246,7 +246,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
                     /* pending空了，从accumulated补充 */
                     d->pending_steps = d->accumulated_steps;
                     d->accumulated_steps = 0;
-                    trigger_mouse_move(dir_id);
+                    trigger_arrow_key(dir_id);
                     d->pending_steps--;
                     d->last_output_time = now;
                     LOG_DBG("Dir %d: UNIFORM output from accumulated, remaining=%d", dir_id, d->pending_steps);
