@@ -35,7 +35,7 @@ LOG_MODULE_REGISTER(bbtrackball_input_handler, LOG_LEVEL_INF);
 
 /* ==== 滚轮节流控制参数 ==== */
 #define COOLDOWN_MS 200            /* 首次触发后的冷却期 */
-#define UNIFORM_INTERVAL_MS 60     /* 匀速输出间隔 */
+#define UNIFORM_INTERVAL_MS 150    /* 匀速输出间隔 */
 #define RESET_IDLE_MS 300          /* 停止移动后重置状态的时间（从100增加到300ms以过滤干扰）*/
 #define DEBOUNCE_MS 5              /* 防抖时间：5ms内的重复脉冲忽略 */
 
@@ -121,10 +121,19 @@ static void trigger_arrow_key(uint8_t dir) {
         default: return;
     }
 
-    /* 发送按键按下事件 */
-    input_report_key(trackball_dev_ref, btn_code, 1, false, K_FOREVER);
-    /* 发送按键释放事件（同步） */
-    input_report_key(trackball_dev_ref, btn_code, 0, true, K_FOREVER);
+    /* 发送按键按下事件 - 使用 K_NO_WAIT 避免阻塞 */
+    if (input_report_key(trackball_dev_ref, btn_code, 1, false, K_NO_WAIT) != 0) {
+        LOG_WRN("Dir %d: failed to send press event", dir);
+        return;  /* 发送失败则跳过，避免堆积 */
+    }
+
+    /* 短暂延迟确保事件分离 */
+    k_msleep(5);
+
+    /* 发送按键释放事件 - 使用 K_NO_WAIT 避免阻塞 */
+    if (input_report_key(trackball_dev_ref, btn_code, 0, true, K_NO_WAIT) != 0) {
+        LOG_WRN("Dir %d: failed to send release event", dir);
+    }
 
     LOG_DBG("Triggered arrow key: dir=%d, btn=%d", dir, btn_code);
 }
@@ -305,7 +314,7 @@ static void process_handler(struct k_work *work) {
         process_dir_throttle(d_down, DIR_DOWN, now);
     }
 
-    k_work_schedule(&process_work, K_MSEC(10));  /* 10ms轮询间隔 */
+    k_work_schedule(&process_work, K_MSEC(50));  /* 10ms轮询间隔 */
 }
 
 /* ==== 初始化 ==== */
@@ -331,7 +340,7 @@ static int bbtrackball_init(const struct device *dev) {
     trackball_dev_ref = dev;
 
     k_work_init_delayable(&process_work, process_handler);
-    k_work_schedule(&process_work, K_MSEC(10));
+    k_work_schedule(&process_work, K_MSEC(50));
 
     return 0;
 }
