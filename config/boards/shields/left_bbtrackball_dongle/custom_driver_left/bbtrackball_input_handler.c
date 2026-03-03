@@ -80,8 +80,8 @@ static void trigger_arrow_key(const struct device *dev, uint8_t dir, bool presse
         default: return;
     }
 
-    /* 使用 input subsystem 发送按键事件（同步等待）*/
-    input_report_key(dev, key_code, pressed ? 1 : 0, true, K_MSEC(50));
+    /* 使用 input subsystem 发送按键事件（非阻塞）*/
+    input_report_key(dev, key_code, pressed ? 1 : 0, false, K_NO_WAIT);
 }
 
 /* ==== 轮询处理（逐步重新启用）==== */
@@ -103,7 +103,6 @@ static void poll_handler(struct k_work *work) {
 
                 /* 触发按键按下和释放 */
                 trigger_arrow_key(dev, i, true);
-                k_msleep(5);
                 trigger_arrow_key(dev, i, false);
 
                 LOG_INF("Direction %d triggered", i);
