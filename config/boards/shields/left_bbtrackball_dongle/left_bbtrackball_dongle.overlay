@@ -28,8 +28,8 @@
 };
 
 &i2c0 {
-    bbtrackball: bbtrackball@0 {
-        compatible = "zmk,bbtrackball";
+    bb: bb@0 {
+        compatible = "zmk,bb";
         reg = <0x0>;
         status = "okay";
     };

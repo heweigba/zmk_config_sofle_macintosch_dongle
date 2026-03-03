@@ -10,7 +10,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#define DT_DRV_COMPAT zmk_bbtrackball
+#define DT_DRV_COMPAT zmk_bb
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
