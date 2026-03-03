@@ -78,8 +78,8 @@ static void trigger_arrow_key(uint8_t dir, bool pressed) {
         default: return;
     }
 
-    /* 使用 input subsystem 发送按键事件 */
-    input_report_key(trackball_dev_ref, key_code, pressed ? 1 : 0, false, K_NO_WAIT);
+    /* 使用 input subsystem 发送按键事件（同步等待）*/
+    input_report_key(trackball_dev_ref, key_code, pressed ? 1 : 0, true, K_MSEC(50));
 }
 
 /* ==== 轮询处理（逐步重新启用）==== */
