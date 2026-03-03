@@ -20,6 +20,7 @@
 #include <zmk/hid.h>
 #include <zmk/endpoints.h>
 #include <zmk/events/position_state_changed.h>
+#include <zmk/event_manager.h>
 
 LOG_MODULE_REGISTER(bbtrackball_input_handler, LOG_LEVEL_INF);
 
@@ -32,20 +33,24 @@ LOG_MODULE_REGISTER(bbtrackball_input_handler, LOG_LEVEL_INF);
 #define GPIO0_DEV DT_NODELABEL(gpio0)
 #define GPIO1_DEV DT_NODELABEL(gpio1)
 
+/* 虚拟按键位置（超出物理键盘范围，避免冲突）*/
+#define VIRTUAL_KEY_LEFT  100
+#define VIRTUAL_KEY_RIGHT 101
+#define VIRTUAL_KEY_UP    102
+#define VIRTUAL_KEY_DOWN  103
 
 /* ==== 滚轮节流控制参数 ==== */
 #define COOLDOWN_MS 200            /* 首次触发后的冷却期 */
-#define UNIFORM_INTERVAL_MS 150    /* 匀速输出间隔（增加以降低频率）*/
+#define UNIFORM_INTERVAL_MS 150    /* 匀速输出间隔 */
 #define RESET_IDLE_MS 500          /* 停止移动后重置状态的时间 */
-#define DEBOUNCE_MS 5              /* 防抖时间：5ms 内的重复脉冲忽略 */
-#define KEY_HOLD_MS 10             /* 按键保持时间 */
+#define DEBOUNCE_MS 5              /* 防抖时间 */
 
 /* 节流状态机 */
 enum throttle_state {
-    THROTTLE_IDLE = 0,             /* 空闲状态 */
-    THROTTLE_FIRST_OUTPUT,         /* 首次输出 */
-    THROTTLE_COOLDOWN,             /* 冷却期 */
-    THROTTLE_UNIFORM               /* 匀速输出 */
+    THROTTLE_IDLE = 0,
+    THROTTLE_FIRST_OUTPUT,
+    THROTTLE_COOLDOWN,
+    THROTTLE_UNIFORM
 };
 
 /* ==== 方向定义 ==== */
@@ -66,20 +71,19 @@ typedef struct {
     const struct device *gpio_dev;
     int pin;
     int last_state;
-    int pending_steps;                  /* 待执行步数 */
-    int accumulated_steps;              /* 冷却期累计的步数 */
-    enum throttle_state throttle;       /* 节流状态机 */
-    uint32_t last_output_time;          /* 上次输出时间 */
-    uint32_t last_pulse_time;           /* 上次脉冲时间 */
-    bool key_pressed;                   /* 按键是否已按下 */
+    int pending_steps;
+    int accumulated_steps;
+    enum throttle_state throttle;
+    uint32_t last_output_time;
+    uint32_t last_pulse_time;
 } DirState;
 
 /* 方向修正 */
 static DirState dir_states[DIR_COUNT] = {
-    [DIR_LEFT]  = {DEVICE_DT_GET(GPIO0_DEV), RIGHT_GPIO_PIN, 1, 0, 0, THROTTLE_IDLE, 0, 0, false},
-    [DIR_RIGHT] = {DEVICE_DT_GET(GPIO0_DEV), LEFT_GPIO_PIN, 1, 0, 0, THROTTLE_IDLE, 0, 0, false},
-    [DIR_UP]    = {DEVICE_DT_GET(GPIO1_DEV), DOWN_GPIO_PIN, 1, 0, 0, THROTTLE_IDLE, 0, 0, false},
-    [DIR_DOWN]  = {DEVICE_DT_GET(GPIO0_DEV), UP_GPIO_PIN, 1, 0, 0, THROTTLE_IDLE, 0, 0, false},
+    [DIR_LEFT]  = {DEVICE_DT_GET(GPIO0_DEV), RIGHT_GPIO_PIN, 1, 0, 0, THROTTLE_IDLE, 0, 0},
+    [DIR_RIGHT] = {DEVICE_DT_GET(GPIO0_DEV), LEFT_GPIO_PIN, 1, 0, 0, THROTTLE_IDLE, 0, 0},
+    [DIR_UP]    = {DEVICE_DT_GET(GPIO1_DEV), DOWN_GPIO_PIN, 1, 0, 0, THROTTLE_IDLE, 0, 0},
+    [DIR_DOWN]  = {DEVICE_DT_GET(GPIO0_DEV), UP_GPIO_PIN, 1, 0, 0, THROTTLE_IDLE, 0, 0},
 };
 
 static struct gpio_callback gpio_cbs[DIR_COUNT];
@@ -95,7 +99,7 @@ struct bbtrackball_data {
     const struct device *dev;
 };
 
-/* ==== 外部接口 (供 trackball_led.c 使用) ==== */
+/* ==== 外部接口 ==== */
 bool trackball_is_moving(void) {
     uint32_t now = k_uptime_get_32();
     for (int i = 0; i < DIR_COUNT; i++) {
@@ -110,40 +114,44 @@ bool trackball_is_moving(void) {
     return false;
 }
 
-/* ==== 发送方向键（使用 INPUT_KEY 事件）==== */
-static void send_arrow_key(uint8_t dir, bool pressed) {
-    uint16_t key_code;
+/* ==== 触发虚拟按键（发送 position state changed 事件）==== */
+static void trigger_virtual_key(uint8_t dir) {
+    uint32_t position;
     switch (dir) {
-        case DIR_LEFT:  key_code = INPUT_KEY_LEFT; break;
-        case DIR_RIGHT: key_code = INPUT_KEY_RIGHT; break;
-        case DIR_UP:    key_code = INPUT_KEY_UP; break;
-        case DIR_DOWN:  key_code = INPUT_KEY_DOWN; break;
+        case DIR_LEFT:  position = VIRTUAL_KEY_LEFT; break;
+        case DIR_RIGHT: position = VIRTUAL_KEY_RIGHT; break;
+        case DIR_UP:    position = VIRTUAL_KEY_UP; break;
+        case DIR_DOWN:  position = VIRTUAL_KEY_DOWN; break;
         default: return;
     }
 
-    /* 使用 K_NO_WAIT 避免阻塞，失败则跳过 */
-    input_report_key(trackball_dev_ref, key_code, pressed ? 1 : 0, pressed == 0, K_NO_WAIT);
+    /* 发送按下事件 */
+    struct zmk_position_state_changed *ev_press = new_zmk_position_state_changed();
+    if (ev_press) {
+        ev_press->position = position;
+        ev_press->state = true;
+        ev_press->timestamp = k_uptime_get();
+        ZMK_EVENT_RAISE(ev_press);
+    }
+
+    /* 立即发送释放事件 */
+    struct zmk_position_state_changed *ev_release = new_zmk_position_state_changed();
+    if (ev_release) {
+        ev_release->position = position;
+        ev_release->state = false;
+        ev_release->timestamp = k_uptime_get();
+        ZMK_EVENT_RAISE(ev_release);
+    }
+
+    LOG_DBG("Triggered virtual key: dir=%d, pos=%d", dir, position);
 }
-
-/* ==== 触发一次方向键（按下 + 释放）==== */
-static void trigger_arrow_key(uint8_t dir) {
-    /* 按下 */
-    send_arrow_key(dir, true);
-
-    /* 短暂保持 */
-    k_msleep(KEY_HOLD_MS);
-
-    /* 释放 */
-    send_arrow_key(dir, false);
-}
-
 
 /* ==== Space Listener ==== */
 static int space_listener_cb(const zmk_event_t *eh) {
     const struct zmk_position_state_changed *ev = as_zmk_position_state_changed(eh);
     if (!ev) return 0;
 
-    if (ev->position == 61) {  // 接收器版偏移 +1
+    if (ev->position == 61) {
         space_pressed = ev->state;
         LOG_INF("Space %s", space_pressed ? "HELD (scroll mode)" : "RELEASED");
     }
@@ -164,9 +172,7 @@ static void dir_edge_cb(const struct device *dev, struct gpio_callback *cb, uint
             if (val != d->last_state) {
                 d->last_state = val;
                 if (val == 0) {  /* 下降沿 */
-                    /* 防抖：5ms 内的重复脉冲忽略 */
                     if (now - d->last_pulse_time < DEBOUNCE_MS) {
-                        LOG_DBG("Dir %d: debounced pulse (interval=%dms)", i, (int)(now - d->last_pulse_time));
                         break;
                     }
                     d->last_pulse_time = now;
@@ -181,17 +187,16 @@ static void dir_edge_cb(const struct device *dev, struct gpio_callback *cb, uint
 
                         case THROTTLE_FIRST_OUTPUT:
                             d->accumulated_steps++;
-                            LOG_DBG("Dir %d: FIRST_OUTPUT pulse accumulated", i);
                             break;
 
                         case THROTTLE_COOLDOWN:
                             d->accumulated_steps++;
-                            LOG_DBG("Dir %d: COOLDOWN pulse accumulated, total=%d", i, d->accumulated_steps);
+                            LOG_DBG("Dir %d: COOLDOWN accumulated=%d", i, d->accumulated_steps);
                             break;
 
                         case THROTTLE_UNIFORM:
                             d->accumulated_steps++;
-                            LOG_DBG("Dir %d: UNIFORM pulse accumulated, total=%d", i, d->accumulated_steps);
+                            LOG_DBG("Dir %d: UNIFORM accumulated=%d", i, d->accumulated_steps);
                             break;
                     }
                 }
@@ -209,7 +214,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
 
         case THROTTLE_FIRST_OUTPUT:
             if (d->pending_steps > 0) {
-                trigger_arrow_key(dir_id);
+                trigger_virtual_key(dir_id);
                 d->pending_steps = 0;
                 d->last_output_time = now;
                 d->throttle = THROTTLE_COOLDOWN;
@@ -226,7 +231,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
                 LOG_INF("Dir %d: COOLDOWN -> UNIFORM (pending=%d)", dir_id, d->pending_steps);
 
                 if (d->pending_steps > 0) {
-                    trigger_arrow_key(dir_id);
+                    trigger_virtual_key(dir_id);
                     d->pending_steps--;
                     d->last_output_time = now;
                 }
@@ -236,23 +241,20 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
         case THROTTLE_UNIFORM:
             if (now - d->last_output_time >= UNIFORM_INTERVAL_MS) {
                 if (d->pending_steps > 0) {
-                    trigger_arrow_key(dir_id);
+                    trigger_virtual_key(dir_id);
                     d->pending_steps--;
                     d->last_output_time = now;
-                    LOG_DBG("Dir %d: UNIFORM output, remaining=%d", dir_id, d->pending_steps);
                 } else if (d->accumulated_steps > 0) {
                     d->pending_steps = d->accumulated_steps;
                     d->accumulated_steps = 0;
-                    trigger_arrow_key(dir_id);
+                    trigger_virtual_key(dir_id);
                     d->pending_steps--;
                     d->last_output_time = now;
-                    LOG_DBG("Dir %d: UNIFORM output from accumulated, remaining=%d", dir_id, d->pending_steps);
                 }
             }
             break;
     }
 
-    /* 超时重置 */
     if (d->throttle != THROTTLE_IDLE && (now - d->last_pulse_time > RESET_IDLE_MS)) {
         LOG_INF("Dir %d: timeout reset to IDLE", dir_id);
         d->throttle = THROTTLE_IDLE;
@@ -265,7 +267,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
 static void process_handler(struct k_work *work) {
     uint32_t now = k_uptime_get_32();
 
-    /* 处理 X 轴（左右）- 互斥 */
+    /* 处理 X 轴 */
     DirState *d_left = &dir_states[DIR_LEFT];
     DirState *d_right = &dir_states[DIR_RIGHT];
 
@@ -283,7 +285,7 @@ static void process_handler(struct k_work *work) {
         process_dir_throttle(d_right, DIR_RIGHT, now);
     }
 
-    /* 处理 Y 轴（上下）- 互斥 */
+    /* 处理 Y 轴 */
     DirState *d_up = &dir_states[DIR_UP];
     DirState *d_down = &dir_states[DIR_DOWN];
 
@@ -301,14 +303,14 @@ static void process_handler(struct k_work *work) {
         process_dir_throttle(d_down, DIR_DOWN, now);
     }
 
-    k_work_schedule(&process_work, K_MSEC(50));  /* 50ms 轮询间隔 */
+    k_work_schedule(&process_work, K_MSEC(50));
 }
 
 /* ==== 初始化 ==== */
 static int bbtrackball_init(const struct device *dev) {
     struct bbtrackball_data *data = dev->data;
 
-    LOG_INF("Initializing BBtrackball (throttle state machine)...");
+    LOG_INF("Initializing BBtrackball (virtual key mode)...");
     LOG_INF("  COOLDOWN: %dms, UNIFORM: %dms, RESET: %dms",
             COOLDOWN_MS, UNIFORM_INTERVAL_MS, RESET_IDLE_MS);
 

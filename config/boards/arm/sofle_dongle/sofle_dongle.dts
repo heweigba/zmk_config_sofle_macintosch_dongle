@@ -101,9 +101,7 @@
 };
 
 &bbtrackball_listener {
-    status = "okay";
-    /* 使用 input-processor 将 INPUT_KEY 事件转换成方向键 */
-    input-processors = <&bb_arrow_keys>;
+    status = "disabled";  /* 不再需要 input-listener */
 };
 
 &adc {
