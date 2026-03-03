@@ -147,27 +147,5 @@ static int bbtrackball_init(const struct device *dev) {
     return 0;
 }
 
-/* ========= 设备注册 ========= */
-#define BBTRACKBALL_INIT_PRIORITY CONFIG_INPUT_INIT_PRIORITY
-
-DEVICE_DT_INST_DEFINE(DT_DRV_INST(0), bbtrackball_init, NULL, NULL, NULL,
-                       POST_KERNEL, BBTRACKBALL_INIT_PRIORITY, NULL);
-
-/* ========= 设备数据和配置 ========= */
-struct bbtrackball_data {
-    /* 可以在这里添加需要保存的数据 */
-};
-
-struct bbtrackball_config {
-    /* 可以在这里添加配置参数 */
-};
-
-#define BBTRACKBALL_DEFINE(inst)                                                        \
-    static struct bbtrackball_data bbtrackball_data_##inst;                         \
-    static const struct bbtrackball_config bbtrackball_config_##inst;                       \
-    DEVICE_DT_INST_DEFINE(inst, bbtrackball_init, NULL,                       \
-                          &bbtrackball_data_##inst,                             \
-                          &bbtrackball_config_##inst,                       \
-                          POST_KERNEL, CONFIG_INPUT_INIT_PRIORITY, NULL);
-
-DT_INST_FOREACH_STATUS_OKAY(BBTRACKBALL_DEFINE);
+/* ========= 设备注册（使用 SYS_INIT 避免名称长度限制）========= */
+SYS_INIT(bbtrackball_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
