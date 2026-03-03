@@ -94,6 +94,12 @@ static void poll_handler(struct k_work *work) {
     k_work_schedule(&poll_work, K_MSEC(POLL_INTERVAL_MS));
 }
 
+/* ==== 轨迹球移动状态查询（测试版始终返回 false）==== */
+bool trackball_is_moving(void) {
+    /* 测试版：完全禁用轨迹球，始终返回未移动 */
+    return false;
+}
+
 /* ==== 初始化 ==== */
 static int bbtrackball_init(const struct device *dev) {
     LOG_INF("Initializing BBtrackball (polling mode)...");
