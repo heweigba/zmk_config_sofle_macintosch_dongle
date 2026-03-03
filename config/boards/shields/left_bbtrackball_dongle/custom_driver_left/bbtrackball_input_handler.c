@@ -54,7 +54,6 @@ enum {
 };
 
 /* ==== 状态 ==== */
-static bool space_pressed = false;
 static const struct device *trackball_dev_ref = NULL;
 
 /* ==== 每个方向的状态 ==== */
@@ -127,22 +126,6 @@ static void trigger_arrow_key(uint8_t dir) {
     /* 释放 */
     send_arrow_key(dir, false);
 }
-
-
-/* ==== Space Listener ==== */
-static int space_listener_cb(const zmk_event_t *eh) {
-    const struct zmk_position_state_changed *ev = as_zmk_position_state_changed(eh);
-    if (!ev) return 0;
-
-    if (ev->position == 61) {
-        space_pressed = ev->state;
-        LOG_INF("Space %s", space_pressed ? "HELD (scroll mode)" : "RELEASED");
-    }
-    return 0;
-}
-
-ZMK_LISTENER(space_listener, space_listener_cb);
-ZMK_SUBSCRIPTION(space_listener, zmk_position_state_changed);
 
 /* ==== GPIO 中断回调 ==== */
 static void dir_edge_cb(const struct device *dev, struct gpio_callback *cb, uint32_t pins) {
