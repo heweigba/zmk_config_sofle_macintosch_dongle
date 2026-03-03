@@ -48,6 +48,10 @@
     };
 };
 
+/* Bind the dongle's bbtrackball_split to local bb device */
+&bbtrackball_split {
+    device = <&bb>;
+};
 
 &pinctrl {
     pwm1_default:pwm1_default{

@@ -44,8 +44,11 @@ enum {
     DIR_COUNT
 };
 
-/* ==== Behavior 设备引用 ==== */
-// 已删除：改用 input subsystem
+/* ==== 设备数据结构 ==== */
+struct bbtrackball_data {
+    const struct device *dev;
+    struct k_work_delayable poll_work;
+};
 
 /* ==== 每个方向的状态 ==== */
 typedef struct {
@@ -64,10 +67,9 @@ static DirState dir_states[DIR_COUNT] = {
 };
 
 static struct k_work_delayable poll_work;
-static const struct device *trackball_dev_ref = NULL;
 
 /* ==== 解发方向键（使用 input subsystem）==== */
-static void trigger_arrow_key(uint8_t dir, bool pressed) {
+static void trigger_arrow_key(const struct device *dev, uint8_t dir, bool pressed) {
     uint16_t key_code;
 
     switch (dir) {
@@ -79,11 +81,14 @@ static void trigger_arrow_key(uint8_t dir, bool pressed) {
     }
 
     /* 使用 input subsystem 发送按键事件（同步等待）*/
-    input_report_key(trackball_dev_ref, key_code, pressed ? 1 : 0, true, K_MSEC(50));
+    input_report_key(dev, key_code, pressed ? 1 : 0, true, K_MSEC(50));
 }
 
 /* ==== 轮询处理（逐步重新启用）==== */
 static void poll_handler(struct k_work *work) {
+    struct k_work_delayable *dwork = CONTAINER_OF(work, struct k_work_delayable, work);
+    struct bbtrackball_data *data = CONTAINER_OF(dwork, struct bbtrackball_data, poll_work);
+    const struct device *dev = data->dev;
     uint32_t now = k_uptime_get_32();
 
     for (int i = 0; i < DIR_COUNT; i++) {
@@ -97,9 +102,9 @@ static void poll_handler(struct k_work *work) {
                 d->last_trigger_time = now;
 
                 /* 触发按键按下和释放 */
-                trigger_arrow_key(i, true);
+                trigger_arrow_key(dev, i, true);
                 k_msleep(5);
-                trigger_arrow_key(i, false);
+                trigger_arrow_key(dev, i, false);
 
                 LOG_INF("Direction %d triggered", i);
             }
@@ -108,7 +113,7 @@ static void poll_handler(struct k_work *work) {
         d->last_state = current_state;
     }
 
-    k_work_schedule(&poll_work, K_MSEC(POLL_INTERVAL_MS));
+    k_work_schedule(&data->poll_work, K_MSEC(POLL_INTERVAL_MS));
 }
 
 /* ==== 轨迹球移动状态查询 ==== */
@@ -131,6 +136,8 @@ static int bbtrackball_init(const struct device *dev) {
     LOG_INF("  POLL_INTERVAL: %dms, COOLDOWN: %dms",
             POLL_INTERVAL_MS, COOLDOWN_MS);
 
+    struct bbtrackball_data *data = dev->data;
+
     /* 初始化 GPIO（不使用中断） */
     for (int i = 0; i < DIR_COUNT; i++) {
         DirState *d = &dir_states[i];
@@ -139,13 +146,20 @@ static int bbtrackball_init(const struct device *dev) {
         d->last_trigger_time = 0;
     }
 
-    trackball_dev_ref = dev;
+    data->dev = dev;
 
-    k_work_init_delayable(&poll_work, poll_handler);
-    k_work_schedule(&poll_work, K_MSEC(POLL_INTERVAL_MS));
+    k_work_init_delayable(&data->poll_work, poll_handler);
+    k_work_schedule(&data->poll_work, K_MSEC(POLL_INTERVAL_MS));
 
     return 0;
 }
 
-/* ========= 设备注册（使用 SYS_INIT 避免名称长度限制）========= */
-SYS_INIT(bbtrackball_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
+/* ========= 设备注册（使用 DEVICE_DT_INST_DEFINE）========= */
+#define BBTRACKBALL_INIT_PRIORITY CONFIG_APPLICATION_INIT_PRIORITY
+
+#define BBTRACKBALL_DEFINE(inst)                                                                    \
+    static struct bbtrackball_data bbtrackball_data_##inst;                                          \
+    DEVICE_DT_INST_DEFINE(inst, bbtrackball_init, NULL, &bbtrackball_data_##inst,                    \
+                          NULL, POST_KERNEL, BBTRACKBALL_INIT_PRIORITY, NULL);
+
+DT_INST_FOREACH_STATUS_OKAY(BBTRACKBALL_DEFINE);
