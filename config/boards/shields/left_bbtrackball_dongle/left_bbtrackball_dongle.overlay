@@ -5,11 +5,13 @@
 *
 */
 #include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <dt-bindings/zmk/keys.h>
 
 / {
     chosen {
         zmk,trackball_led = &trackball_led;
     };
+
     trackball_led: pwmledo{
         compatible = "pwm-leds";
         pwm_led_0 {
@@ -17,6 +19,29 @@
         };
     };
 
+    /* 定义轨迹球方向键 behaviors */
+    behaviors {
+        arrow_left: arrow_left {
+            compatible = "zmk,behavior-key-press";
+            #binding-cells = <0>;
+            bindings = <&kp LEFT>;
+        };
+        arrow_right: arrow_right {
+            compatible = "zmk,behavior-key-press";
+            #binding-cells = <0>;
+            bindings = <&kp RIGHT>;
+        };
+        arrow_up: arrow_up {
+            compatible = "zmk,behavior-key-press";
+            #binding-cells = <0>;
+            bindings = <&kp UP>;
+        };
+        arrow_down: arrow_down {
+            compatible = "zmk,behavior-key-press";
+            #binding-cells = <0>;
+            bindings = <&kp DOWN>;
+        };
+    };
 };
 
 &pwm1 {
