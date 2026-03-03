@@ -137,13 +137,7 @@
 
     };
 
-    /* Listeners */
-    bbtrackball_listener: bbtrackball_listener {
-        compatible = "zmk,input-listener";
-        status = "disabled";
-        device = <&bbtrackball_split>;
-    };
-
+    /* Listeners 在接收器端定义，不在 peripheral 端 */
 };
 
 lpm_view_spi: &spi2 {
