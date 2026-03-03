@@ -75,16 +75,11 @@ static void trigger_arrow_behavior(uint8_t dir) {
     };
 
     switch (dir) {
-        case DIR_LEFT:   binding.param1 = LEFT;  break;
-        case DIR_RIGHT:  binding.param1 = RIGHT; break;
-        case DIR_UP:     binding.param1 = UP;    break;
-        case DIR_DOWN:   binding.param1 = DOWN;  break;
+        case DIR_LEFT:   binding.param1 = INPUT_KEY_LEFT;  break;
+        case DIR_RIGHT:  binding.param1 = INPUT_KEY_RIGHT; break;
+        case DIR_UP:     binding.param1 = INPUT_KEY_UP;    break;
+        case DIR_DOWN:   binding.param1 = INPUT_KEY_DOWN;  break;
         default: return;
-    }
-
-    if (binding.behavior_dev == NULL) {
-        LOG_ERR("KP behavior device not found");
-        return;
     }
 
     /* 触发按键按下 */
