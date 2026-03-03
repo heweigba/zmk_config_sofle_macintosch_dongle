@@ -17,6 +17,14 @@
         compatible = "zmk,input-processor-temp-layer";
         #input-processor-cells = <2>;
     };
+
+    /* 定义轨迹球方向键转换处理器 */
+    bb_arrow_keys: bb_arrow_keys {
+        compatible = "zmk,input-processor-behaviors";
+        #input-processor-cells = <0>;
+        codes = <INPUT_KEY_LEFT INPUT_KEY_RIGHT INPUT_KEY_UP INPUT_KEY_DOWN>;
+        bindings = <&kp LEFT>, <&kp RIGHT>, <&kp UP>, <&kp DOWN>;
+    };
 };
 
 / {
@@ -101,7 +109,8 @@
 };
 
 &bbtrackball_listener {
-    status = "disabled";  /* 不再需要 input-listener */
+    status = "okay";
+    input-processors = <&bb_arrow_keys>;
 };
 
 &adc {

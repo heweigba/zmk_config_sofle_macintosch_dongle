@@ -4,8 +4,8 @@
  * 算法：节流状态机
  * - IDLE: 等待首次脉冲
  * - FIRST_OUTPUT: 输出 1 格，进入冷却
- * - COOLDOWN: 200ms 冷却期，累计脉冲
- * - UNIFORM: 60ms 固定间隔匀速输出
+ * - COOLDOWN: 300ms 冷却期，累计脉冲
+ * - UNIFORM: 200ms 固定间隔匀速输出
  * SPDX-License-Identifier: MIT
  */
 
@@ -17,10 +17,6 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/input/input.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
-#include <zmk/hid.h>
-#include <zmk/endpoints.h>
-#include <zmk/events/position_state_changed.h>
-#include <zmk/event_manager.h>
 
 LOG_MODULE_REGISTER(bbtrackball_input_handler, LOG_LEVEL_INF);
 
@@ -33,17 +29,12 @@ LOG_MODULE_REGISTER(bbtrackball_input_handler, LOG_LEVEL_INF);
 #define GPIO0_DEV DT_NODELABEL(gpio0)
 #define GPIO1_DEV DT_NODELABEL(gpio1)
 
-/* 虚拟按键位置（超出物理键盘范围，避免冲突）*/
-#define VIRTUAL_KEY_LEFT  100
-#define VIRTUAL_KEY_RIGHT 101
-#define VIRTUAL_KEY_UP    102
-#define VIRTUAL_KEY_DOWN  103
 
-/* ==== 滚轮节流控制参数 ==== */
-#define COOLDOWN_MS 200            /* 首次触发后的冷却期 */
-#define UNIFORM_INTERVAL_MS 150    /* 匀速输出间隔 */
+/* ==== 滚轮节流控制参数（增加冷却时间）==== */
+#define COOLDOWN_MS 300            /* 首次触发后的冷却期（从 200ms 增加到 300ms）*/
+#define UNIFORM_INTERVAL_MS 200        /* 匢速输出间隔（从 150ms 增加到 200ms）*/
 #define RESET_IDLE_MS 500          /* 停止移动后重置状态的时间 */
-#define DEBOUNCE_MS 5              /* 防抖时间 */
+#define DEBOUNCE_MS 10              /* 防抖时间：10ms 内的重复脉冲忽略 */
 
 /* 节流状态机 */
 enum throttle_state {
@@ -114,37 +105,29 @@ bool trackball_is_moving(void) {
     return false;
 }
 
-/* ==== 触发虚拟按键（发送 position state changed 事件）==== */
-static void trigger_virtual_key(uint8_t dir) {
-    uint32_t position;
+/* ==== 发送方向键（使用 INPUT_KEY 事件）==== */
+static void send_arrow_key(uint8_t dir, bool pressed) {
+    uint16_t key_code;
     switch (dir) {
-        case DIR_LEFT:  position = VIRTUAL_KEY_LEFT; break;
-        case DIR_RIGHT: position = VIRTUAL_KEY_RIGHT; break;
-        case DIR_UP:    position = VIRTUAL_KEY_UP; break;
-        case DIR_DOWN:  position = VIRTUAL_KEY_DOWN; break;
+        case DIR_LEFT:  key_code = INPUT_KEY_LEFT; break;
+        case DIR_RIGHT: key_code = INPUT_KEY_RIGHT; break;
+        case DIR_UP:    key_code = INPUT_KEY_UP; break;
+        case DIR_DOWN:  key_code = INPUT_KEY_DOWN; break;
         default: return;
     }
 
-    /* 发送按下事件 */
-    struct zmk_position_state_changed *ev_press = new_zmk_position_state_changed();
-    if (ev_press) {
-        ev_press->position = position;
-        ev_press->state = true;
-        ev_press->timestamp = k_uptime_get();
-        ZMK_EVENT_RAISE(ev_press);
-    }
-
-    /* 立即发送释放事件 */
-    struct zmk_position_state_changed *ev_release = new_zmk_position_state_changed();
-    if (ev_release) {
-        ev_release->position = position;
-        ev_release->state = false;
-        ev_release->timestamp = k_uptime_get();
-        ZMK_EVENT_RAISE(ev_release);
-    }
-
-    LOG_DBG("Triggered virtual key: dir=%d, pos=%d", dir, position);
+    /* 使用阻塞等待（10ms 超时）*/
+    input_report_key(trackball_dev_ref, key_code, pressed ? 1 : 0, true, K_MSEC(10));
 }
+
+/* ==== 触发一次方向键（按下 + 释放）==== */
+static void trigger_arrow_key(uint8_t dir) {
+    /* 按下 */
+    send_arrow_key(dir, true);
+    /* 释放 */
+    send_arrow_key(dir, false);
+}
+
 
 /* ==== Space Listener ==== */
 static int space_listener_cb(const zmk_event_t *eh) {
@@ -187,16 +170,17 @@ static void dir_edge_cb(const struct device *dev, struct gpio_callback *cb, uint
 
                         case THROTTLE_FIRST_OUTPUT:
                             d->accumulated_steps++;
+                            LOG_DBG("Dir %d: FIRST_OUTPUT pulse accumulated", i);
                             break;
 
                         case THROTTLE_COOLDOWN:
                             d->accumulated_steps++;
-                            LOG_DBG("Dir %d: COOLDOWN accumulated=%d", i, d->accumulated_steps);
+                            LOG_DBG("Dir %d: COOLDOWN pulse accumulated, total=%d", i, d->accumulated_steps);
                             break;
 
                         case THROTTLE_UNIFORM:
                             d->accumulated_steps++;
-                            LOG_DBG("Dir %d: UNIFORM accumulated=%d", i, d->accumulated_steps);
+                            LOG_DBG("Dir %d: UNIFORM pulse accumulated, total=%d", i, d->accumulated_steps);
                             break;
                     }
                 }
@@ -214,7 +198,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
 
         case THROTTLE_FIRST_OUTPUT:
             if (d->pending_steps > 0) {
-                trigger_virtual_key(dir_id);
+                trigger_arrow_key(dir_id);
                 d->pending_steps = 0;
                 d->last_output_time = now;
                 d->throttle = THROTTLE_COOLDOWN;
@@ -231,7 +215,7 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
                 LOG_INF("Dir %d: COOLDOWN -> UNIFORM (pending=%d)", dir_id, d->pending_steps);
 
                 if (d->pending_steps > 0) {
-                    trigger_virtual_key(dir_id);
+                    trigger_arrow_key(dir_id);
                     d->pending_steps--;
                     d->last_output_time = now;
                 }
@@ -241,13 +225,13 @@ static void process_dir_throttle(DirState *d, int dir_id, uint32_t now) {
         case THROTTLE_UNIFORM:
             if (now - d->last_output_time >= UNIFORM_INTERVAL_MS) {
                 if (d->pending_steps > 0) {
-                    trigger_virtual_key(dir_id);
+                    trigger_arrow_key(dir_id);
                     d->pending_steps--;
                     d->last_output_time = now;
                 } else if (d->accumulated_steps > 0) {
                     d->pending_steps = d->accumulated_steps;
                     d->accumulated_steps = 0;
-                    trigger_virtual_key(dir_id);
+                    trigger_arrow_key(dir_id);
                     d->pending_steps--;
                     d->last_output_time = now;
                 }
@@ -271,6 +255,7 @@ static void process_handler(struct k_work *work) {
     DirState *d_left = &dir_states[DIR_LEFT];
     DirState *d_right = &dir_states[DIR_RIGHT];
 
+
     if ((d_left->pending_steps > 0 || d_left->accumulated_steps > 0) &&
         (d_right->pending_steps > 0 || d_right->accumulated_steps > 0)) {
         int left_total = d_left->pending_steps + d_left->accumulated_steps;
@@ -285,9 +270,12 @@ static void process_handler(struct k_work *work) {
         process_dir_throttle(d_right, DIR_RIGHT, now);
     }
 
+
+
     /* 处理 Y 轴 */
     DirState *d_up = &dir_states[DIR_UP];
     DirState *d_down = &dir_states[DIR_DOWN];
+
 
     if ((d_up->pending_steps > 0 || d_up->accumulated_steps > 0) &&
         (d_down->pending_steps > 0 || d_down->accumulated_steps > 0)) {
@@ -303,6 +291,7 @@ static void process_handler(struct k_work *work) {
         process_dir_throttle(d_down, DIR_DOWN, now);
     }
 
+
     k_work_schedule(&process_work, K_MSEC(50));
 }
 
@@ -310,7 +299,9 @@ static void process_handler(struct k_work *work) {
 static int bbtrackball_init(const struct device *dev) {
     struct bbtrackball_data *data = dev->data;
 
-    LOG_INF("Initializing BBtrackball (virtual key mode)...");
+
+
+    LOG_INF("Initializing BBtrackball (throttle state machine)...");
     LOG_INF("  COOLDOWN: %dms, UNIFORM: %dms, RESET: %dms",
             COOLDOWN_MS, UNIFORM_INTERVAL_MS, RESET_IDLE_MS);
 
@@ -320,10 +311,12 @@ static int bbtrackball_init(const struct device *dev) {
                           GPIO_INPUT | GPIO_PULL_UP | GPIO_INT_EDGE_BOTH);
         d->last_state = gpio_pin_get(d->gpio_dev, d->pin);
 
+
         gpio_init_callback(&gpio_cbs[i], dir_edge_cb, BIT(d->pin));
         gpio_add_callback(d->gpio_dev, &gpio_cbs[i]);
         gpio_pin_interrupt_configure(d->gpio_dev, d->pin, GPIO_INT_EDGE_BOTH);
     }
+
 
     data->dev = dev;
     trackball_dev_ref = dev;
@@ -333,17 +326,3 @@ static int bbtrackball_init(const struct device *dev) {
 
     return 0;
 }
-
-/* ==== 驱动实例注册 ==== */
-#define BBTRACKBALL_INIT_PRIORITY CONFIG_INPUT_INIT_PRIORITY
-#define BBTRACKBALL_DEFINE(inst)                                                                   \
-    static struct bbtrackball_data bbtrackball_data_##inst;                                        \
-    static const struct bbtrackball_dev_config bbtrackball_config_##inst = {                       \
-        .x_input_code = DT_PROP_OR(DT_DRV_INST(inst), x_input_code, INPUT_REL_X),                  \
-        .y_input_code = DT_PROP_OR(DT_DRV_INST(inst), y_input_code, INPUT_REL_Y),                  \
-    };                                                                                             \
-    DEVICE_DT_INST_DEFINE(inst, bbtrackball_init, NULL, &bbtrackball_data_##inst,                  \
-                          &bbtrackball_config_##inst, POST_KERNEL, BBTRACKBALL_INIT_PRIORITY,      \
-                          NULL);
-
-DT_INST_FOREACH_STATUS_OKAY(BBTRACKBALL_DEFINE);
