@@ -45,10 +45,7 @@ enum {
 };
 
 /* ==== Behavior 设备引用 ==== */
-static const struct device *arrow_left_dev = NULL;
-static const struct device *arrow_right_dev = NULL;
-static const struct device *arrow_up_dev = NULL;
-static const struct device *arrow_down_dev = NULL;
+static const struct device *kp_behavior_dev = NULL;
 
 /* ==== 每个方向的状态 ==== */
 typedef struct {
@@ -72,21 +69,21 @@ static const struct device *trackball_dev_ref = NULL;
 /* ==== 解发方向键 behavior ==== */
 static void trigger_arrow_behavior(uint8_t dir) {
     struct zmk_behavior_binding binding = {
-        .behavior_dev = NULL,
+        .behavior_dev = kp_behavior_dev,
         .param1 = 0,
         .param2 = 0,
     };
 
     switch (dir) {
-        case DIR_LEFT:   binding.behavior_dev = arrow_left_dev; break;
-        case DIR_RIGHT:  binding.behavior_dev = arrow_right_dev; break;
-        case DIR_UP:     binding.behavior_dev = arrow_up_dev; break;
-        case DIR_DOWN:   binding.behavior_dev = arrow_down_dev; break;
+        case DIR_LEFT:   binding.param1 = LEFT;  break;
+        case DIR_RIGHT:  binding.param1 = RIGHT; break;
+        case DIR_UP:     binding.param1 = UP;    break;
+        case DIR_DOWN:   binding.param1 = DOWN;  break;
         default: return;
     }
 
     if (binding.behavior_dev == NULL) {
-        LOG_ERR("Behavior device not found for dir %d", dir);
+        LOG_ERR("KP behavior device not found");
         return;
     }
 
@@ -108,15 +105,11 @@ static int bbtrackball_init(const struct device *dev) {
     LOG_INF("  POLL_INTERVAL: %dms, COOLDOWN: %dms",
             POLL_INTERVAL_MS, COOLDOWN_MS);
 
-    /* 获取 behavior 设备引用 */
-    arrow_left_dev = DEVICE_DT_GET(DT_NODELABEL(arrow_left));
-    arrow_right_dev = DEVICE_DT_GET(DT_NODELABEL(arrow_right));
-    arrow_up_dev = DEVICE_DT_GET(DT_NODELABEL(arrow_up));
-    arrow_down_dev = DEVICE_DT_GET(DT_NODELABEL(arrow_down));
+    /* 获取 KP behavior 设备引用 */
+    kp_behavior_dev = DEVICE_DT_GET(DT_NODELABEL(kp));
 
-    if (arrow_left_dev == NULL || arrow_right_dev == NULL ||
-        arrow_up_dev == NULL || arrow_down_dev == NULL) {
-        LOG_ERR("Failed to get behavior devices");
+    if (kp_behavior_dev == NULL) {
+        LOG_ERR("Failed to get KP behavior device");
         return -EINVAL;
     }
 

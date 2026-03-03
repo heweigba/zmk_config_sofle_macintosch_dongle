@@ -18,30 +18,6 @@
             pwms = <&pwm1 0 PWM_USEC(20) PWM_POLARITY_NORMAL>;
         };
     };
-
-    /* 定义轨迹球方向键 behaviors */
-    behaviors {
-        arrow_left: arrow_left {
-            compatible = "zmk,behavior-key-press";
-            #binding-cells = <0>;
-            bindings = <&kp LEFT>;
-        };
-        arrow_right: arrow_right {
-            compatible = "zmk,behavior-key-press";
-            #binding-cells = <0>;
-            bindings = <&kp RIGHT>;
-        };
-        arrow_up: arrow_up {
-            compatible = "zmk,behavior-key-press";
-            #binding-cells = <0>;
-            bindings = <&kp UP>;
-        };
-        arrow_down: arrow_down {
-            compatible = "zmk,behavior-key-press";
-            #binding-cells = <0>;
-            bindings = <&kp DOWN>;
-        };
-    };
 };
 
 &pwm1 {
