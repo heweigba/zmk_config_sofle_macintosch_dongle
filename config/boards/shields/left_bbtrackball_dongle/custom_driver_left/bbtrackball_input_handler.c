@@ -96,27 +96,9 @@ static void trigger_arrow_behavior(uint8_t dir) {
     zmk_behavior_trigger_binding(&binding, false);
 }
 
-/* ==== 轮询处理（每 100ms）==== */
+/* ==== 轮询处理（完全禁用，用于测试）==== */
 static void poll_handler(struct k_work *work) {
-    uint32_t now = k_uptime_get_32();
-
-    for (int i = 0; i < DIR_COUNT; i++) {
-        DirState *d = &dir_states[i];
-        int val = gpio_pin_get(d->gpio_dev, d->pin);
-
-        /* 检测下降沿（轨迹球滚动） */
-        if (val == 0 && d->last_state == 1) {
-            /* 检查冷却时间 */
-            if (now - d->last_trigger_time >= COOLDOWN_MS) {
-                d->last_trigger_time = now;
-                trigger_arrow_behavior(i);
-                LOG_DBG("Dir %d: triggered", i);
-            }
-        }
-
-        d->last_state = val;
-    }
-
+    /* 定时测试：暂时不触发任何事件 */
     k_work_schedule(&poll_work, K_MSEC(POLL_INTERVAL_MS));
 }
 
