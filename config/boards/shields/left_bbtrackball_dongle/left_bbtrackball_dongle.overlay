@@ -48,10 +48,6 @@
 };
 
 
-&bbtrackball_split {
-    device = <&bbtrackball>;
-};
-
 &pinctrl {
     pwm1_default:pwm1_default{
         group1{
