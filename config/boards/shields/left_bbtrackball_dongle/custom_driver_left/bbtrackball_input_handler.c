@@ -147,3 +147,19 @@ static int bbtrackball_init(const struct device *dev) {
     return 0;
 }
 
+/* ========= 设备注册 ========= */
+#define BBTRACKBALL_INIT_PRIORITY CONFIG_INPUT_INIT_PRIORITY
+
+DEVICE_DT_INST_DEFINE(bbtrackball_init, NULL, NULL, POST_KERNEL,
+                      BBTRACKBALL_INIT_PRIORITY, NULL);
+
+DT_INST_FOREACH_STATUS_OKAY(BBTRACKBALL_DEFINE);
+
+
+/* ========= 设备注册 ========= */
+#define BBTRACKBALL_INIT_PRIORITY CONFIG_INPUT_INIT_PRIORITY
+
+DEVICE_DT_INST_DEFINE(bbtrackball_init, NULL, NULL, NULL,
+                       POST_KERNEL, BBTRACKBALL_INIT_PRIORITY, NULL);
+
+DT_INST_FOREACH_STATUS_OKAY(BBTRACKBALL_DEFINE);
