@@ -72,20 +72,20 @@ static struct k_work_delayable poll_work;
 static uint32_t last_trigger_time_global = 0;
 
 /* ==== 触发方向键（使用鼠标滚轮事件）==== */
-static void trigger_arrow_key(const struct device *dev, uint8_t dir, bool pressed) {
-    /* 改用滚轮事件，避免 INPUT_KEY_* 导致崩溃 */
+static void trigger_arrow_key(const struct device *dev, uint8_t dir) {
+    /* 改用滚轮事件，一次性发送 */
     switch (dir) {
         case DIR_LEFT:
-            if (pressed) input_report_rel(dev, INPUT_REL_HWHEEL, -1, false, K_NO_WAIT);
+            input_report_rel(dev, INPUT_REL_HWHEEL, -5, true, K_FOREVER);
             break;
         case DIR_RIGHT:
-            if (pressed) input_report_rel(dev, INPUT_REL_HWHEEL, 1, false, K_NO_WAIT);
+            input_report_rel(dev, INPUT_REL_HWHEEL, 5, true, K_FOREVER);
             break;
         case DIR_UP:
-            if (pressed) input_report_rel(dev, INPUT_REL_WHEEL, 1, false, K_NO_WAIT);
+            input_report_rel(dev, INPUT_REL_WHEEL, 5, true, K_FOREVER);
             break;
         case DIR_DOWN:
-            if (pressed) input_report_rel(dev, INPUT_REL_WHEEL, -1, false, K_NO_WAIT);
+            input_report_rel(dev, INPUT_REL_WHEEL, -5, true, K_FOREVER);
             break;
         default: return;
     }
@@ -119,9 +119,8 @@ static void poll_handler(struct k_work *work) {
             /* 更新全局冷却时间 */
             last_trigger_time_global = now;
 
-            /* 触发按键按下和释放 */
-            trigger_arrow_key(dev, i, true);
-            trigger_arrow_key(dev, i, false);
+            /* 触发滚轮事件（一次性）*/
+            trigger_arrow_key(dev, i);
 
             LOG_INF("Direction %d triggered", i);
 
