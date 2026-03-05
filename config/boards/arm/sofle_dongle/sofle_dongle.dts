@@ -18,13 +18,13 @@
         #input-processor-cells = <2>;
     };
 
-    /* 定义轨迹球方向键转换处理器（改用滚轮事件）*/
+    /* 定义轨迹球方向键转换处理器（使用虚拟按钮）*/
     bb_arrow_keys: bb_arrow_keys {
         compatible = "zmk,input-processor-behaviors";
         #input-processor-cells = <0>;
-        /* 映射滚轮事件到方向键 */
-        codes = <INPUT_REL_HWHEEL INPUT_REL_WHEEL>;
-        bindings = <&kp LEFT>, <&kp UP>;  /* 水平滚轮→左，垂直滚轮→上 */
+        /* 映射按钮事件到方向键 */
+        codes = <INPUT_BTN_0 INPUT_BTN_1 INPUT_BTN_2 INPUT_BTN_3>;
+        bindings = <&kp LEFT>, <&kp RIGHT>, <&kp UP>, <&kp DOWN>;
     };
 };
 
