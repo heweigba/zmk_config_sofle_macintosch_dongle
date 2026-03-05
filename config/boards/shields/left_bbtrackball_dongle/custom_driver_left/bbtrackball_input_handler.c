@@ -85,16 +85,9 @@ static void trigger_arrow_key(const struct device *dev, uint8_t dir) {
 
     if (dir >= DIR_COUNT) return;
 
-    /* 获取 key press behavior 设备 */
-    const struct device *kp_dev = DEVICE_DT_GET(DT_INST(0, zmk_behavior_key_press));
-    if (!device_is_ready(kp_dev)) {
-        LOG_ERR("Key press behavior device not ready");
-        return;
-    }
-
-    /* 构造 behavior binding */
+    /* 构造 behavior binding（使用 key press behavior）*/
     struct zmk_behavior_binding binding = {
-        .behavior_dev = kp_dev->name,
+        .behavior_dev = "key_press",
         .param1 = keycodes[dir],
         .param2 = 0,
     };
