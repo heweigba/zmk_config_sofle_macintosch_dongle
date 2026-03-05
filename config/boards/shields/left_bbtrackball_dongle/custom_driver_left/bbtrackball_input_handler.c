@@ -68,6 +68,9 @@ static DirState dir_states[DIR_COUNT] = {
 
 static struct k_work_delayable poll_work;
 
+/* 全局冷却时间戳（所有方向共享）*/
+static uint32_t last_trigger_time_global = 0;
+
 /* ==== 解发方向键（使用 input subsystem）==== */
 static void trigger_arrow_key(const struct device *dev, uint8_t dir, bool pressed) {
     uint16_t key_code;
@@ -91,25 +94,44 @@ static void poll_handler(struct k_work *work) {
     const struct device *dev = data->dev;
     uint32_t now = k_uptime_get_32();
 
+    /* 全局冷却检查：任意方向触发后，所有方向都冷却 */
+    if (now - last_trigger_time_global < COOLDOWN_MS) {
+        /* 在冷却期内，只更新状态，不触发事件 */
+        for (int i = 0; i < DIR_COUNT; i++) {
+            DirState *d = &dir_states[i];
+            d->last_state = gpio_pin_get(d->gpio_dev, d->pin);
+        }
+        k_work_schedule(&data->poll_work, K_MSEC(POLL_INTERVAL_MS));
+        return;
+    }
+
+    /* 冷却期外，检测是否有方向触发 */
     for (int i = 0; i < DIR_COUNT; i++) {
         DirState *d = &dir_states[i];
         int current_state = gpio_pin_get(d->gpio_dev, d->pin);
 
         /* 检测下降沿（按下） */
         if (d->last_state == 1 && current_state == 0) {
-            /* 冷却时间检查 */
-            if (now - d->last_trigger_time >= COOLDOWN_MS) {
-                d->last_trigger_time = now;
+            /* 更新全局冷却时间 */
+            last_trigger_time_global = now;
 
-                /* 触发按键按下和释放 */
-                trigger_arrow_key(dev, i, true);
-                trigger_arrow_key(dev, i, false);
+            /* 触发按键按下和释放 */
+            trigger_arrow_key(dev, i, true);
+            trigger_arrow_key(dev, i, false);
 
-                LOG_INF("Direction %d triggered", i);
-            }
+            LOG_INF("Direction %d triggered", i);
+
+            /* 只触发第一个检测到的方向，然后退出 */
+            break;
         }
 
         d->last_state = current_state;
+    }
+
+    /* 继续更新剩余方向的状态（为下一次检测做准备） */
+    for (int i = 0; i < DIR_COUNT; i++) {
+        DirState *d = &dir_states[i];
+        d->last_state = gpio_pin_get(d->gpio_dev, d->pin);
     }
 
     k_work_schedule(&data->poll_work, K_MSEC(POLL_INTERVAL_MS));

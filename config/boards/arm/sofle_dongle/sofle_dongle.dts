@@ -109,7 +109,7 @@
 };
 
 &bbtrackball_listener {
-    status = "disabled";  /* 暂时禁用，诊断是否是处理器导致死机 */
+    status = "okay";
     input-processors = <&bb_arrow_keys>;
 };
 
