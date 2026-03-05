@@ -71,20 +71,24 @@ static struct k_work_delayable poll_work;
 /* 全局冷却时间戳（所有方向共享）*/
 static uint32_t last_trigger_time_global = 0;
 
-/* ==== 解发方向键（使用 input subsystem）==== */
+/* ==== 触发方向键（使用鼠标滚轮事件）==== */
 static void trigger_arrow_key(const struct device *dev, uint8_t dir, bool pressed) {
-    uint16_t key_code;
-
+    /* 改用滚轮事件，避免 INPUT_KEY_* 导致崩溃 */
     switch (dir) {
-        case DIR_LEFT:   key_code = INPUT_KEY_LEFT;  break;
-        case DIR_RIGHT:  key_code = INPUT_KEY_RIGHT; break;
-        case DIR_UP:     key_code = INPUT_KEY_UP;    break;
-        case DIR_DOWN:   key_code = INPUT_KEY_DOWN;  break;
+        case DIR_LEFT:
+            if (pressed) input_report_rel(dev, INPUT_REL_HWHEEL, -1, false, K_NO_WAIT);
+            break;
+        case DIR_RIGHT:
+            if (pressed) input_report_rel(dev, INPUT_REL_HWHEEL, 1, false, K_NO_WAIT);
+            break;
+        case DIR_UP:
+            if (pressed) input_report_rel(dev, INPUT_REL_WHEEL, 1, false, K_NO_WAIT);
+            break;
+        case DIR_DOWN:
+            if (pressed) input_report_rel(dev, INPUT_REL_WHEEL, -1, false, K_NO_WAIT);
+            break;
         default: return;
     }
-
-    /* 使用 input subsystem 发送按键事件（非阻塞）*/
-    input_report_key(dev, key_code, pressed ? 1 : 0, false, K_NO_WAIT);
 }
 
 /* ==== 轮询处理（逐步重新启用）==== */

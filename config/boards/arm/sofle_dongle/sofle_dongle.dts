@@ -18,13 +18,13 @@
         #input-processor-cells = <2>;
     };
 
-    /* 定义轨迹球方向键转换处理器 */
+    /* 定义轨迹球方向键转换处理器（改用滚轮事件）*/
     bb_arrow_keys: bb_arrow_keys {
         compatible = "zmk,input-processor-behaviors";
         #input-processor-cells = <0>;
-        /* 测试：只映射一个键 */
-        codes = <INPUT_KEY_LEFT>;
-        bindings = <&kp LEFT>;
+        /* 映射滚轮事件到方向键 */
+        codes = <INPUT_REL_HWHEEL INPUT_REL_WHEEL>;
+        bindings = <&kp LEFT>, <&kp UP>;  /* 水平滚轮→左，垂直滚轮→上 */
     };
 };
 
@@ -110,8 +110,8 @@
 };
 
 &bbtrackball_listener {
-    status = "okay";  /* 测试：启用监听器，但只映射一个键 */
-    input-processors = <&bb_arrow_keys>;
+    status = "okay";
+    input-processors = <&bb_arrow_keys>;  /* 映射滚轮到方向键 */
 };
 
 &adc {
