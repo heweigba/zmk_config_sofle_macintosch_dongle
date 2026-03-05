@@ -109,7 +109,7 @@
 };
 
 &bbtrackball_listener {
-    status = "okay";
+    status = "disabled";  /* 完全禁用，确认是否是处理器导致接收器崩溃 */
     input-processors = <&bb_arrow_keys>;
 };
 
