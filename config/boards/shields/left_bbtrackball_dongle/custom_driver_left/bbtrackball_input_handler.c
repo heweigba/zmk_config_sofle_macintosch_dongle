@@ -19,6 +19,8 @@
 #include <zephyr/input/input.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zmk/behavior.h>
+#include <dt-bindings/zmk/keys.h>
+#include <zmk/keymap.h>
 
 LOG_MODULE_REGISTER(bbtrackball_input_handler, LOG_LEVEL_INF);
 
@@ -71,24 +73,57 @@ static struct k_work_delayable poll_work;
 /* 全局冷却时间戳（所有方向共享）*/
 static uint32_t last_trigger_time_global = 0;
 
-/* ==== 触发方向键（使用鼠标滚轮事件）==== */
+/* ==== 触发方向键（使用 behavior 直接触发）==== */
 static void trigger_arrow_key(const struct device *dev, uint8_t dir) {
-    /* 改用滚轮事件，一次性发送 */
-    switch (dir) {
-        case DIR_LEFT:
-            input_report_rel(dev, INPUT_REL_HWHEEL, -5, true, K_FOREVER);
-            break;
-        case DIR_RIGHT:
-            input_report_rel(dev, INPUT_REL_HWHEEL, 5, true, K_FOREVER);
-            break;
-        case DIR_UP:
-            input_report_rel(dev, INPUT_REL_WHEEL, 5, true, K_FOREVER);
-            break;
-        case DIR_DOWN:
-            input_report_rel(dev, INPUT_REL_WHEEL, -5, true, K_FOREVER);
-            break;
-        default: return;
+    /* 定义方向键的 keycode */
+    uint32_t keycodes[DIR_COUNT] = {
+        [DIR_LEFT]  = LEFT,
+        [DIR_RIGHT] = RIGHT,
+        [DIR_UP]    = UP,
+        [DIR_DOWN]  = DOWN,
+    };
+
+    if (dir >= DIR_COUNT) return;
+
+    /* 获取 key press behavior 设备 */
+    const struct device *kp_dev = DEVICE_DT_GET(DT_INST(0, zmk_behavior_key_press));
+    if (!device_is_ready(kp_dev)) {
+        LOG_ERR("Key press behavior device not ready");
+        return;
     }
+
+    /* 构造 behavior binding */
+    struct zmk_behavior_binding binding = {
+        .behavior_dev = kp_dev->name,
+        .param1 = keycodes[dir],
+        .param2 = 0,
+    };
+
+    /* 构造 binding event */
+    struct zmk_behavior_binding_event event = {
+        .layer = 0,
+        .position = 0,
+        .timestamp = k_uptime_get(),
+    };
+
+    /* 触发按下 */
+    int ret = zmk_behavior_invoke_binding(&binding, event, true);
+    if (ret < 0) {
+        LOG_ERR("Failed to trigger key press: %d", ret);
+        return;
+    }
+
+    /* 短暂延迟后释放 */
+    k_msleep(10);
+
+    /* 触发释放 */
+    ret = zmk_behavior_invoke_binding(&binding, event, false);
+    if (ret < 0) {
+        LOG_ERR("Failed to trigger key release: %d", ret);
+        return;
+    }
+
+    LOG_INF("Direction %d triggered via behavior", dir);
 }
 
 /* ==== 轮询处理（逐步重新启用）==== */
