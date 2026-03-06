@@ -109,9 +109,9 @@
     input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
+/* 启用 bbtrackball_listener（移除 input-processors，让方向键直接透传）*/
 &bbtrackball_listener {
     status = "okay";
-    input-processors = <&bb_arrow_keys>;  /* 映射滚轮到方向键 */
 };
 
 &adc {
