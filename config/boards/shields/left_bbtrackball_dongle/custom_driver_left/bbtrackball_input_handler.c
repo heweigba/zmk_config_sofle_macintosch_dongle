@@ -92,10 +92,13 @@ static void trigger_arrow_key(const struct device *dev, uint8_t dir) {
 
     uint16_t btn = btn_codes[dir];
 
-    /* 发送按钮按下事件 */
-    input_report_key(dev, btn, 1, false, K_FOREVER);
+    /* 发送按钮按下事件（sync=true，立即发送）*/
+    input_report_key(dev, btn, 1, true, K_FOREVER);
 
-    /* 发送按钮释放事件 */
+    /* 短暂延迟，确保按下事件被处理 */
+    k_msleep(5);
+
+    /* 发送按钮释放事件（sync=true，立即发送）*/
     input_report_key(dev, btn, 0, true, K_FOREVER);
 
     LOG_INF("Direction %d triggered via button %d (press+release)", dir, btn);
