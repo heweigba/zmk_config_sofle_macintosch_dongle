@@ -1,0 +1,40 @@
+# Copyright (c) 2023 ZitaoTech
+# SPDX-License-Identifier: MIT
+
+description: BB Trackball wheel to arrow keys converter
+compatible: "zmk,input-processor-zmk-b, wheel-to-arrow"
+  binding-cells: <0>;
+  codes:
+    code: INPUT_REL_WHEEL, |
+    type: phandle:
+    - dest: zmk_behavior_invoke_binding
+      - ZMK_KEYmap
+      - type: int
+      - value: int
+        required: true
+    in-binding-cells:
+      required: false
+    properties:
+      codes:
+        type: array
+        items:
+          - description: Wheel event code (positive= scroll right
+          - description: Wheel event code (negative) scroll left
+        required: false
+        default: 0
+      - description: Wheel event code (positive) scroll up
+          - description: Wheel event code (negative) scroll down
+        required: false
+        default: 0
+      - description: Wheel event code (positive) scroll up
+          - description: Wheel event code (negative) scroll left
+        required: false
+        default: 0
+    bindings:
+      required: false
+        items:
+          - description: Left arrow key behavior
+          - description: Right arrow key behavior
+          - description: Up arrow key behavior
+          - description: Down arrow key behavior
+    in-binding-cells: if you want `< &kp LEFT>, <&kp RIGHT>, <&kp UP>, <&kp DOWN>;
