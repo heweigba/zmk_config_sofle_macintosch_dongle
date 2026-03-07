@@ -84,14 +84,17 @@ static void trigger_arrow_key(const struct device *dev, uint8_t dir) {
 
     uint16_t btn_code = btn_codes[dir];
 
-    /* 发送按钮按下事件（不立即同步）*/
-    input_report_key(dev, btn_code, 1, false, K_MSEC(50));
+    /* 发送按钮按下事件（立即同步）*/
+    input_report_key(dev, btn_code, 1, true, K_MSEC(100));
 
-    /* 关键：给接收器时间处理按下事件，避免状态混乱 */
-    k_msleep(20);
+    /* 关键：给接收器充足时间处理按下事件 */
+    k_msleep(50);
 
     /* 发送按钮释放事件（立即同步）*/
-    input_report_key(dev, btn_code, 0, true, K_MSEC(50));
+    input_report_key(dev, btn_code, 0, true, K_MSEC(100));
+
+    /* 再次延迟，确保接收器处理完释放事件 */
+    k_msleep(50);
 
     LOG_INF("Direction %d triggered via BTN_%d", dir, dir);
 }
