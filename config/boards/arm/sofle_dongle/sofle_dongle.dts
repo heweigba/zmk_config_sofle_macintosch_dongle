@@ -22,8 +22,8 @@
     bb_arrow_keys: bb_arrow_keys {
         compatible = "zmk,input-processor-behaviors";
         #input-processor-cells = <0>;
-        /* 映射按钮事件到方向键 */
-        codes = <INPUT_BTN_0 INPUT_BTN_1 INPUT_BTN_2 INPUT_BTN_3>;
+        /* 映射键盘按键事件到方向键（使用KEY_0/1/2/3，而不是BTN_0/1/2/3）*/
+        codes = <INPUT_KEY_0 INPUT_KEY_1 INPUT_KEY_2 INPUT_KEY_3>;
         bindings = <&kp LEFT>, <&kp RIGHT>, <&kp UP>, <&kp DOWN>;
     };
 

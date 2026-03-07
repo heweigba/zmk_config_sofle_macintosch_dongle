@@ -70,30 +70,30 @@ static struct k_work_delayable poll_work;
 /* 全局冷却时间戳（所有方向共享）*/
 static uint32_t last_trigger_time_global = 0;
 
-/* ==== 触发方向键（使用虚拟按钮，修复sync标志避免卡住）==== */
+/* ==== 触发方向键（使用键盘按键代码，避免鼠标按钮）==== */
 static void trigger_arrow_key(const struct device *dev, uint8_t dir) {
-    /* 定义方向对应的虚拟按钮代码 */
-    uint16_t btn_codes[DIR_COUNT] = {
-        [DIR_LEFT]  = INPUT_BTN_0,   /* 左方向 → BTN_0 */
-        [DIR_RIGHT] = INPUT_BTN_1,   /* 右方向 → BTN_1 */
-        [DIR_UP]    = INPUT_BTN_2,   /* 上方向 → BTN_2 */
-        [DIR_DOWN]  = INPUT_BTN_3,   /* 下方向 → BTN_3 */
+    /* 定义方向对应的键盘按键代码（使用KEY_0/1/2/3，而不是BTN_0/1/2/3）*/
+    uint16_t key_codes[DIR_COUNT] = {
+        [DIR_LEFT]  = INPUT_KEY_0,   /* 左方向 → KEY_0 */
+        [DIR_RIGHT] = INPUT_KEY_1,   /* 右方向 → KEY_1 */
+        [DIR_UP]    = INPUT_KEY_2,   /* 上方向 → KEY_2 */
+        [DIR_DOWN]  = INPUT_KEY_3,   /* 下方向 → KEY_3 */
     };
 
     if (dir >= DIR_COUNT) return;
 
-    uint16_t btn_code = btn_codes[dir];
+    uint16_t key_code = key_codes[dir];
 
     /* 发送按钮按下事件（立即同步，避免状态卡住）*/
-    input_report_key(dev, btn_code, 1, true, K_MSEC(50));
+    input_report_key(dev, key_code, 1, true, K_MSEC(50));
 
     /* 给接收器充足时间处理按下事件 */
     k_msleep(50);
 
     /* 发送按钮释放事件（立即同步）*/
-    input_report_key(dev, btn_code, 0, true, K_MSEC(50));
+    input_report_key(dev, key_code, 0, true, K_MSEC(50));
 
-    LOG_INF("Direction %d triggered via BTN_%d", dir, dir);
+    LOG_INF("Direction %d triggered via KEY_%d", dir, key_code);
 }
 
 /* ==== 轮询处理（逐步重新启用）==== */
