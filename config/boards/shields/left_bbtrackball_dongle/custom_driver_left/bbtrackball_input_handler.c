@@ -70,38 +70,27 @@ static struct k_work_delayable poll_work;
 /* 全局冷却时间戳（所有方向共享）*/
 static uint32_t last_trigger_time_global = 0;
 
-/* 定义轨迹球方向对应的虚拟按钮 */
-enum {
-    BB_BTN_LEFT  = INPUT_BTN_0,   /* 左方向 → 按钮0 */
-    BB_BTN_RIGHT = INPUT_BTN_1,   /* 右方向 → 按钮1 */
-    BB_BTN_UP    = INPUT_BTN_2,   /* 上方向 → 按钮2 */
-    BB_BTN_DOWN  = INPUT_BTN_3,   /* 下方向 → 按钮3 */
-};
-
-/* ==== 触发方向键（使用虚拟按钮事件，完整的按下-释放序列）==== */
+/* ==== 触发方向键（使用滚轮事件）==== */
 static void trigger_arrow_key(const struct device *dev, uint8_t dir) {
-    /* 定义方向对应的按钮 code */
-    uint16_t btn_codes[DIR_COUNT] = {
-        [DIR_LEFT]  = BB_BTN_LEFT,
-        [DIR_RIGHT] = BB_BTN_RIGHT,
-        [DIR_UP]    = BB_BTN_UP,
-        [DIR_DOWN]  = BB_BTN_DOWN,
+    /* 定义方向对应的滚轮事件和值 */
+    struct {
+        uint16_t code;
+        int32_t value;
+    } wheel_configs[DIR_COUNT] = {
+        [DIR_LEFT]  = {INPUT_REL_HWHEEL, -5},   /* 左滚 */
+        [DIR_RIGHT] = {INPUT_REL_HWHEEL, 5},   /* 右滚 */
+        [DIR_UP]    = {INPUT_REL_WHEEL, 5},     /* 上滚 */
+        [DIR_DOWN]  = {INPUT_REL_WHEEL, -5},   /* 下滚 */
     };
 
     if (dir >= DIR_COUNT) return;
 
-    uint16_t btn = btn_codes[dir];
+    uint16_t code = wheel_configs[dir].code;
+    int32_t value = wheel_configs[dir].value;
 
-    /* 发送按钮按下事件（sync=true，立即发送）*/
-    input_report_key(dev, btn, 1, true, K_FOREVER);
+    /* 发送滚轮事件 */
+    input_report_rel(dev, code, value, true, K_FOREVER);
 
-    /* 短暂延迟，确保按下事件被处理 */
-    k_msleep(5);
-
-    /* 发送按钮释放事件（sync=true，立即发送）*/
-    input_report_key(dev, btn, 0, true, K_FOREVER);
-
-    LOG_INF("Direction %d triggered via button %d (press+release)", dir, btn);
 }
 
 /* ==== 轮询处理（逐步重新启用）==== */

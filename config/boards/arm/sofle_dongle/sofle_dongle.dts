@@ -109,10 +109,10 @@
     input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
-/* 启用 bbtrackball_listener，绑定方向键转换处理器 */
+/* 启用 bbtrackball_listener，使用临时层切换（模仿 TrackPoint）*/
 &bbtrackball_listener {
     status = "okay";
-    input-processors = <&bb_arrow_keys>;  /* 映射虚拟按钮到方向键 */
+    input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
 &adc {
