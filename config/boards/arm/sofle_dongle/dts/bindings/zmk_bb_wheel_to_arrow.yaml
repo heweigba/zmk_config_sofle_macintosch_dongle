@@ -2,10 +2,14 @@
 # SPDX-License-Identifier: MIT
 
 description: BB Trackball wheel-to-arrow key input processor
-compatible = "zmk,input-processor"
+compatible: "zmk,input-processor"
+
 include <zephyr/dt-bindings/input/input-event-codes.h>
 
 properties:
-  - compatible: "zmk_bb_wheel_to_arrow"
-    - label: "BB Trackball ArrowKeys Processor"
-    - status: "okay"
+  - compatible:
+    type: string
+    required:
+  - status:
+    type: string
+    required:
