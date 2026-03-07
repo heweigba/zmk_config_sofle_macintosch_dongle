@@ -1,20 +1,11 @@
-/* SPDX-License-Identifier: MIT */
+# Copyright (c) 2023 ZitaoTech
+# SPDX-License-Identifier: MIT
 
-#include <zephyr/dt-bindings/input/input-event-codes.h>
+description: BB Trackball wheel-to-arrow key input processor
+compatible = "zmk,input-processor";
+include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
-    compatible = "zmk,input-processor-temp-layer";
-    #input-processor-cells = <0>;
-    label = "BB Trackball ArrowKeys Processor";
+    compatible = "zmk_bb_wheel_to_arrow";
     status = "okay";
-    #input-processor-cells = <0>;
-};
-};
-
-/ {
-    zmk,input-processor-temp-layer {
-        compatible = "zmk_bb_wheel_to_arrow";
-        #address-cells = <0>;
-        #size-cells = <1>;
-    };
 };
