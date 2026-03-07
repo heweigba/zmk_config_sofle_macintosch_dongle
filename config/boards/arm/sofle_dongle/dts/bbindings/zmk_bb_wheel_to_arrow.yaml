@@ -1,0 +1,20 @@
+# Copyright (c) 2025 ZitaoTech
+# SPDX-License-Identifier: MIT
+
+description: |
+Device tree binding for bb_wheel_to_arrow input processor
+Convert trackball wheel events to arrow keys
+|
+
+compatible: "zmk,input-processor"
+include: zephyr/dt-bindings/input/input-event-codes.h
+
+properties:
+  zmk,behavior:
+    description: Behavior to invoke when wheel event is detected
+    zmk,behavior-binding:
+      const struct zmk_behavior_binding * binding;
+};
+
+input-processor-cells:
+  const: uint32_t

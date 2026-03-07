@@ -13,7 +13,7 @@
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zmk/behavior.h>
 #include <zmk/keymap.h>
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(bb_wheel_to_arrow, LOG_LEVEL_INF);
 
