@@ -109,10 +109,10 @@
     input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
-/* 启用 bbtrackball_listener，使用临时层切换（模仿 TrackPoint）*/
+/* 启用 bbtrackball_listener，不使用任何处理器，直接发送按键事件 */
 &bbtrackball_listener {
     status = "okay";
-    input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
+    /* 不绑定 input-processors，让 INPUT_KEY 事件直接传输到主机 */
 };
 
 &adc {

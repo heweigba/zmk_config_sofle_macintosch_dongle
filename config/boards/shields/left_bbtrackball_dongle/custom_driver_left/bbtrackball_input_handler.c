@@ -70,27 +70,29 @@ static struct k_work_delayable poll_work;
 /* 全局冷却时间戳（所有方向共享）*/
 static uint32_t last_trigger_time_global = 0;
 
-/* ==== 触发方向键（使用滚轮事件）==== */
+/* ==== 触发方向键（直接发送 INPUT_KEY 事件）==== */
 static void trigger_arrow_key(const struct device *dev, uint8_t dir) {
-    /* 定义方向对应的滚轮事件和值 */
-    struct {
-        uint16_t code;
-        int32_t value;
-    } wheel_configs[DIR_COUNT] = {
-        [DIR_LEFT]  = {INPUT_REL_HWHEEL, -5},   /* 左滚 */
-        [DIR_RIGHT] = {INPUT_REL_HWHEEL, 5},   /* 右滚 */
-        [DIR_UP]    = {INPUT_REL_WHEEL, 5},     /* 上滚 */
-        [DIR_DOWN]  = {INPUT_REL_WHEEL, -5},   /* 下滚 */
+    /* 定义方向对应的 INPUT_KEY 代码 */
+    uint16_t key_codes[DIR_COUNT] = {
+        [DIR_LEFT]  = INPUT_KEY_LEFT,
+        [DIR_RIGHT] = INPUT_KEY_RIGHT,
+        [DIR_UP]    = INPUT_KEY_UP,
+        [DIR_DOWN]  = INPUT_KEY_DOWN,
     };
 
     if (dir >= DIR_COUNT) return;
 
-    uint16_t code = wheel_configs[dir].code;
-    int32_t value = wheel_configs[dir].value;
+    uint16_t key_code = key_codes[dir];
 
-    /* 发送滚轮事件 */
-    input_report_rel(dev, code, value, true, K_FOREVER);
+    /* 发送按键按下事件 */
+    input_report_key(dev, key_code, 1, true, K_MSEC(50));
 
+    /* 短暂延迟后发送按键释放事件 */
+    k_msleep(10);
+
+    input_report_key(dev, key_code, 0, true, K_MSEC(50));
+
+    LOG_INF("Direction %d triggered via INPUT_KEY %d", dir, key_code);
 }
 
 /* ==== 轮询处理（逐步重新启用）==== */
