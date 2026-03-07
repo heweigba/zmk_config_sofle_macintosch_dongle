@@ -26,6 +26,12 @@
         codes = <INPUT_BTN_0 INPUT_BTN_1 INPUT_BTN_2 INPUT_BTN_3>;
         bindings = <&kp LEFT>, <&kp RIGHT>, <&kp UP>, <&kp DOWN>;
     };
+
+    /* 自定义滚轮到方向键处理器 */
+    bb_wheel_to_arrow: bb_wheel_to_arrow {
+        compatible = "zmk_bb_wheel_to_arrow";
+        #input-processor-cells = <0>;
+    };
 };
 
 / {
@@ -109,10 +115,10 @@
     input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
-/* 启用 bbtrackball_listener，绑定方向键转换处理器 */
+/* 启用 bbtrackball_listener，使用自定义滚轮到方向键处理器 */
 &bbtrackball_listener {
     status = "okay";
-    input-processors = <&bb_arrow_keys>;  /* 映射虚拟按钮到方向键 */
+    input-processors = <&bb_wheel_to_arrow>;  /* 滚轮事件直接转换为方向键 */
 };
 
 &adc {
