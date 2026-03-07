@@ -1,7 +1,7 @@
 /*
  * bb_wheel_to_arrow.c - Custom input processor
  * Converts wheel events to arrow keys
- * Bypasses buggy input-processor-behaviors
+ * Directly sends INPUT_KEY events without behaviors API
  *
  * SPDX-License-Identifier: MIT
  */
@@ -11,8 +11,6 @@
 #include <zephyr/device.h>
 #include <zephyr/input/input.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
-#include <zmk/behavior.h>
-#include <zmk/keymap.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(bb_wheel_to_arrow, LOG_LEVEL_INF);
@@ -29,14 +27,12 @@ static int bb_wheel_to_arrow_init(const struct device *dev) {
 /* Process input events */
 static int bb_wheel_to_arrow_handle(const struct device *dev,
                                         struct input_event *event) {
-    const struct bb_wheel_to_arrow_cfg *cfg = dev->config;
-
     /* Only process RELATIVE (wheel) events */
     if (event->type != INPUT_EV_REL) {
         return 0;
     }
 
-    uint16_t arrow_key = 0;
+    uint32_t arrow_key = 0;
 
     /* Map wheel events to arrow keys */
     switch (event->code) {
@@ -64,43 +60,24 @@ static int bb_wheel_to_arrow_handle(const struct device *dev,
         return 0;
     }
 
-    LOG_INF("Converting wheel %d (value %d) to arrow key %d",
+    LOG_INF("Converting wheel %d (value %d) to arrow key %u",
          event->code, event->value, arrow_key);
 
-    /* Find the zmk,behaviors-key-press behavior */
-    static const struct device *kp_dev =
-        DEVICE_DT_GET(DT_NODELABEL(kp));
-
-    if (!device_is_ready(kp_dev)) {
-        LOG_ERR("kp behavior device not ready");
-        return -ENODEV;
-    }
-
-    /* Invoke the key press behavior directly */
-    struct zmk_behavior_binding binding = {
-        .behavior_dev = kp_dev,
-        .param1 = arrow_key,
-        .param2 = 0,
-    };
-
-    /* Trigger key press */
-    int ret = zmk_behavior_invoke_binding(&binding, NULL, true);
+    /* Send key press event (sync=false) */
+    int ret = input_report_key(dev, arrow_key, 1, false, K_NO_WAIT);
     if (ret < 0) {
-        LOG_ERR("Failed to invoke behavior: %d", ret);
+        LOG_ERR("Failed to send key press: %d", ret);
         return ret;
     }
 
-    /* Small delay then release */
-    k_msleep(30);
-
-    /* Trigger key release */
-    ret = zmk_behavior_invoke_binding(&binding, NULL, false);
+    /* Send key release event (sync=true to complete the sequence) */
+    ret = input_report_key(dev, arrow_key, 0, true, K_NO_WAIT);
     if (ret < 0) {
-        LOG_ERR("Failed to release behavior: %d", ret);
+        LOG_ERR("Failed to send key release: %d", ret);
         return ret;
     }
 
-    LOG_INF("Arrow key %d triggered successfully", arrow_key);
+    LOG_INF("Arrow key %u triggered successfully", arrow_key);
     return 0;
 }
 
