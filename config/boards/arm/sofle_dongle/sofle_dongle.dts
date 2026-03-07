@@ -115,10 +115,10 @@
     input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
-/* 启用 bbtrackball_listener，直接传递INPUT_KEY事件到主机，不做任何转换 */
+/* 启用 bbtrackball_listener，使用bb_arrow_keys处理器映射虚拟按钮到方向键 */
 &bbtrackball_listener {
     status = "okay";
-    /* 不使用任何input-processors */
+    input-processors = <&bb_arrow_keys>;  /* 映射虚拟按钮到方向键 */
 };
 
 &adc {
