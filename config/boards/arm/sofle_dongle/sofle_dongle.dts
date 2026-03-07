@@ -18,18 +18,9 @@
         #input-processor-cells = <2>;
     };
 
-    /* 定义轨迹球方向键转换处理器（使用虚拟按钮）*/
+    /* 自定义BTN到方向键转换处理器 */
     bb_arrow_keys: bb_arrow_keys {
-        compatible = "zmk,input-processor-behaviors";
-        #input-processor-cells = <0>;
-        /* 映射键盘按键事件到方向键（使用KEY_0/1/2/3，而不是BTN_0/1/2/3）*/
-        codes = <INPUT_KEY_0 INPUT_KEY_1 INPUT_KEY_2 INPUT_KEY_3>;
-        bindings = <&kp LEFT>, <&kp RIGHT>, <&kp UP>, <&kp DOWN>;
-    };
-
-    /* 自定义滚轮到方向键处理器 */
-    bb_wheel_to_arrow: bb_wheel_to_arrow {
-        compatible = "zmk_bb_wheel_to_arrow";
+        compatible = "zmk_bb_btn_to_arrow";
         #input-processor-cells = <0>;
     };
 
@@ -121,10 +112,10 @@
     input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
-/* 启用 bbtrackball_listener，Behavior方案：不需要任何input-processor */
+/* 启用 bbtrackball_listener，使用自定义processor转换BTN到方向键 */
 &bbtrackball_listener {
     status = "okay";
-    /* Behavior方案：外设端直接调用behavior API，    * 不需要任何input-processors */
+    input-processors = <&bb_arrow_keys>;
 };
 
 
@@ -166,7 +157,7 @@
         group1 {
             psels = <NRF_PSEL(PWM_OUT0, 0, 16)>;
             bias-pull-down;
-        };
+        }
     };
 
 };
