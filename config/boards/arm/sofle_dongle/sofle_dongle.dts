@@ -109,11 +109,10 @@
     input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
-/* 启用 bbtrackball_listener，使用临时层切换 + 虚拟按钮映射 */
+/* 启用 bbtrackball_listener，绑定方向键转换处理器 */
 &bbtrackball_listener {
     status = "okay";
-    /* 先切换到功能层（layer 1），再用 bb_arrow_keys 映射虚拟按钮到方向键 */
-    input-processors = <&zip_temp_layer 1 400>, <&bb_arrow_keys>;
+    input-processors = <&bb_arrow_keys>;  /* 映射虚拟按钮到方向键 */
 };
 
 &adc {
