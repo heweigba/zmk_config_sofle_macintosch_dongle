@@ -115,10 +115,10 @@
     input-processors = <&zip_temp_layer MOUSE_LAYER_ID 400>;
 };
 
-/* 启用 bbtrackball_listener，使用自定义滚轮到方向键处理器 */
+/* 启用 bbtrackball_listener，直接传递INPUT_KEY事件到主机，不做任何转换 */
 &bbtrackball_listener {
     status = "okay";
-    input-processors = <&bb_wheel_to_arrow>;  /* 滚轮事件直接转换为方向键 */
+    /* 不使用任何input-processors */
 };
 
 &adc {
