@@ -22,6 +22,7 @@
     bb_wheel_to_arrow: bb_wheel_to_arrow {
         compatible = "zmk_bb_wheel_to_arrow";
         #input-processor-cells = <0>;
+        track-remainders;
     };
 };
 
