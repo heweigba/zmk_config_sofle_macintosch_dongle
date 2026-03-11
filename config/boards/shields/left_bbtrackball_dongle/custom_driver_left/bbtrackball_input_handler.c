@@ -70,30 +70,26 @@ static struct k_work_delayable poll_work;
 /* 全局冷却时间戳（所有方向共享）*/
 static uint32_t last_trigger_time_global = 0;
 
-/* ==== 触发方向键（使用虚拟按钮，修复sync标志避免卡住）==== */
+/* ==== 触发方向键（使用滚轮事件，利用bb_wheel_to_arrow处理器）==== */
 static void trigger_arrow_key(const struct device *dev, uint8_t dir) {
-    /* 定义方向对应的虚拟按钮代码 */
-    uint16_t btn_codes[DIR_COUNT] = {
-        [DIR_LEFT]  = INPUT_BTN_0,   /* 左方向 → BTN_0 */
-        [DIR_RIGHT] = INPUT_BTN_1,   /* 右方向 → BTN_1 */
-        [DIR_UP]    = INPUT_BTN_2,   /* 上方向 → BTN_2 */
-        [DIR_DOWN]  = INPUT_BTN_3,   /* 下方向 → BTN_3 */
+    /* 定义方向对应的滚轮事件 */
+    struct {
+        uint16_t code;
+        int32_t value;
+    } wheel_events[DIR_COUNT] = {
+        [DIR_LEFT]  = { INPUT_REL_HWHEEL, -1 },  /* 左方向 → 水平滚轮负值 */
+        [DIR_RIGHT] = { INPUT_REL_HWHEEL,  1 },  /* 右方向 → 水平滚轮正值 */
+        [DIR_UP]    = { INPUT_REL_WHEEL,   1 },  /* 上方向 → 垂直滚轮正值 */
+        [DIR_DOWN]  = { INPUT_REL_WHEEL,  -1 },  /* 下方向 → 垂直滚轮负值 */
     };
 
     if (dir >= DIR_COUNT) return;
 
-    uint16_t btn_code = btn_codes[dir];
+    /* 发送滚轮事件（sync=true立即同步）*/
+    input_report_rel(dev, wheel_events[dir].code, wheel_events[dir].value, true, K_NO_WAIT);
 
-    /* 发送按钮按下事件（立即同步，避免状态卡住）*/
-    input_report_key(dev, btn_code, 1, true, K_MSEC(50));
-
-    /* 给接收器充足时间处理按下事件 */
-    k_msleep(50);
-
-    /* 发送按钮释放事件（立即同步）*/
-    input_report_key(dev, btn_code, 0, true, K_MSEC(50));
-
-    LOG_INF("Direction %d triggered via BTN_%d", dir, dir);
+    LOG_INF("Direction %d triggered via WHEEL (code=%d, value=%d)",
+            dir, wheel_events[dir].code, wheel_events[dir].value);
 }
 
 /* ==== 轮询处理（逐步重新启用）==== */
