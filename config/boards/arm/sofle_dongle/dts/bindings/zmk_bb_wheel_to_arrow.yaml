@@ -9,3 +9,6 @@ properties:
   status:
     type: string
     required: false
+  track-remainders:
+    type: boolean
+    required: false
